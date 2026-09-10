@@ -1,0 +1,2 @@
+-- The product is single-user and creates all rows through Google-authenticated flows.
+-- Keep this seed empty so local setup never creates a second user or fake papers.

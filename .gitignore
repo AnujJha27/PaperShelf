@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+test-results/
+apps/web/.env.local
+supabase/.temp/
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+services/recommender/.mypy_cache/
+*.egg-info/

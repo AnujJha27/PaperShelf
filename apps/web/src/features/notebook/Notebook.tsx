@@ -1,0 +1,142 @@
+import { useEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { listNotebookPages, saveNotebookPage, type StoredNotebookPage } from "../../lib/api";
+import { deriveSearchText, moveObject, normalizePoint, reorderPages, simplifyStroke, smoothStroke, type NotebookObject, type StrokeObject, type TextObject } from "./notebookModel";
+import { deleteNotebookPage, setNotebookPageIndex } from "../../lib/api";
+
+const PAGE_WIDTH = 1000;
+const PAGE_HEIGHT = 1400;
+
+export function Notebook({ paperId }: { paperId: string }) {
+  const [pages, setPages] = useState<StoredNotebookPage[]>([]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [objects, setObjects] = useState<NotebookObject[]>([]);
+  const [, setVersion] = useState(0);
+  const [mode, setMode] = useState<"draw" | "text" | "erase" | "select">("select");
+  const [message, setMessage] = useState("");
+  const [history, setHistory] = useState<NotebookObject[][]>([]);
+  const [future, setFuture] = useState<NotebookObject[][]>([]);
+  const versionRef = useRef(0);
+  const [conflict, setConflict] = useState(false);
+  const activeStroke = useRef<StrokeObject | null>(null);
+  const draggedObject = useRef<{ id: string; startX: number; startY: number; original: NotebookObject[] } | null>(null);
+
+  useEffect(() => {
+    void listNotebookPages(paperId).then((loaded) => {
+      const next = loaded.length ? loaded : [{ id: crypto.randomUUID(), page_index: 0, objects: [], search_text: "", version: 0 }];
+      setPages(next); setObjects(next[0].objects); setVersion(next[0].version); versionRef.current = next[0].version;
+    }).catch((error: Error) => setMessage(error.message));
+  }, [paperId]);
+
+  useEffect(() => {
+    if (!pages.length) return;
+    const timer = window.setTimeout(() => {
+      void saveNotebookPage(paperId, pageIndex, objects, versionRef.current).then((saved) => { versionRef.current = saved.version; setVersion(saved.version); setConflict(false); setPages((current) => current.map((page) => page.page_index === pageIndex ? saved : page)); }).catch((error: Error) => { setMessage(error.message); setConflict(error.message.includes("Notebook changed elsewhere")); });
+    }, 750);
+    return () => window.clearTimeout(timer);
+  }, [paperId, pageIndex, objects, pages.length]);
+
+  function changeObjects(next: NotebookObject[]) { setHistory((current) => [...current, objects]); setFuture([]); setObjects(next); }
+  function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (mode !== "draw") return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const rect = event.currentTarget.getBoundingClientRect();
+    activeStroke.current = { type: "stroke", id: crypto.randomUUID(), points: [normalizePoint(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height, event.pressure || 0.5)], width: 2.2 };
+  }
+  function pointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (draggedObject.current) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const dx = (event.clientX - draggedObject.current.startX) / rect.width;
+      const dy = (event.clientY - draggedObject.current.startY) / rect.height;
+      setObjects(draggedObject.current.original.map((object) => object.id === draggedObject.current?.id ? moveObject(object, dx, dy) : object));
+      return;
+    }
+    if (!activeStroke.current) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    activeStroke.current.points.push(normalizePoint(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height, event.pressure || 0.5));
+    setObjects((current) => [...current.filter((object) => object.id !== activeStroke.current?.id), activeStroke.current!]);
+  }
+  function pointerUp() {
+    if (draggedObject.current) {
+      setHistory((current) => [...current, draggedObject.current!.original]); setFuture([]); draggedObject.current = null; return;
+    }
+    if (!activeStroke.current) return;
+    const stroke = { ...activeStroke.current, points: smoothStroke(simplifyStroke(activeStroke.current.points)) };
+    setHistory((current) => [...current, objects]); setFuture([]); setObjects((current) => [...current.filter((object) => object.id !== stroke.id), stroke]); activeStroke.current = null;
+  }
+  function addText() {
+    const text = window.prompt("Note text");
+    if (!text?.trim()) return;
+    const object: TextObject = { type: "text", id: crypto.randomUUID(), x: 0.1, y: 0.1, w: 0.4, h: 0.08, text: text.trim(), fontSize: 16 };
+    changeObjects([...objects, object]);
+  }
+  function erase(event: ReactPointerEvent<HTMLDivElement>) {
+    if (mode !== "erase") return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width; const y = (event.clientY - rect.top) / rect.height;
+    changeObjects(objects.filter((object) => object.type === "stroke" ? !object.points.some(([pointX, pointY]) => Math.hypot(pointX - x, pointY - y) < 0.03) : !(x >= object.x && x <= object.x + object.w && y >= object.y && y <= object.y + object.h)));
+  }
+  function undo() { const previous = history.at(-1); if (!previous) return; setFuture((current) => [...current, objects]); setHistory((current) => current.slice(0, -1)); setObjects(previous); }
+  function redo() { const next = future.at(-1); if (!next) return; setHistory((current) => [...current, objects]); setFuture((current) => current.slice(0, -1)); setObjects(next); }
+
+  function startObjectDrag(event: ReactPointerEvent<HTMLElement | SVGElement>, id: string) {
+    if (mode !== "select") return;
+    event.stopPropagation();
+    draggedObject.current = { id, startX: event.clientX, startY: event.clientY, original: objects };
+    (event.currentTarget as HTMLElement | SVGElement).setPointerCapture(event.pointerId);
+  }
+
+  function resizeText(event: ReactPointerEvent<HTMLDivElement>, id: string) {
+    if (mode !== "select") return;
+    const parent = event.currentTarget.parentElement?.getBoundingClientRect();
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!parent || !parent.width || !parent.height) return;
+    setObjects((current) => current.map((object) => object.id === id && object.type === "text" ? { ...object, w: Math.min(1 - object.x, rect.width / parent.width), h: Math.min(1 - object.y, rect.height / parent.height) } : object));
+  }
+
+  function reloadLatest() {
+    void listNotebookPages(paperId).then((loaded) => { const latest = loaded.find((page) => page.page_index === pageIndex); if (latest) { setObjects(latest.objects); setVersion(latest.version); versionRef.current = latest.version; setConflict(false); setMessage(""); } }).catch((error: Error) => setMessage(error.message));
+  }
+  function keepAsNewPage() {
+    const next = { id: crypto.randomUUID(), page_index: pages.length, objects, search_text: deriveSearchText(objects), version: 0 };
+    setPages([...pages, next]); setPageIndex(next.page_index); setVersion(0); versionRef.current = 0; setConflict(false); setMessage("");
+  }
+  function selectPage(next: StoredNotebookPage) { setPageIndex(next.page_index); setObjects(next.objects); setVersion(next.version); versionRef.current = next.version; setHistory([]); setFuture([]); setConflict(false); }
+  async function movePage(delta: number) {
+    const from = pages.findIndex((page) => page.page_index === pageIndex);
+    const to = Math.max(0, Math.min(pages.length - 1, from + delta));
+    if (from < 0 || from === to) return;
+    const ordered = reorderPages(pages.map((page) => ({ id: page.id, pageIndex: page.page_index, objects: page.objects })), from, to);
+    const next = ordered.map((page) => ({ ...pages.find((current) => current.id === page.id)!, page_index: page.pageIndex }));
+    try {
+      await Promise.all(pages.map((page, index) => setNotebookPageIndex(page.id, pages.length + 10000 + index)));
+      await Promise.all(next.map((page) => setNotebookPageIndex(page.id, page.page_index)));
+      setPages(next); selectPage(next[to]);
+    } catch (error) { setMessage((error as Error).message); }
+  }
+  async function removePage() {
+    if (pages.length === 1) return;
+    const current = pages.find((page) => page.page_index === pageIndex);
+    if (!current) return;
+    try {
+      await deleteNotebookPage(current.id);
+      const remaining = pages.filter((page) => page.id !== current.id).map((page, index) => ({ ...page, page_index: index }));
+      await Promise.all(remaining.map((page, index) => setNotebookPageIndex(page.id, remaining.length + 10000 + index)));
+      await Promise.all(remaining.map((page) => setNotebookPageIndex(page.id, page.page_index)));
+      setPages(remaining); selectPage(remaining[Math.min(pageIndex, remaining.length - 1)]);
+    } catch (error) { setMessage((error as Error).message); }
+  }
+
+  return <section>
+    <h2>Notebook</h2>
+    <div><button onClick={() => setMode("select")}>Select</button><button onClick={() => setMode("draw")}>Pen</button><button onClick={() => { setMode("text"); addText(); setMode("select"); }}>Text</button><button onClick={() => setMode("erase")}>Eraser</button><button onClick={undo}>Undo</button><button onClick={redo}>Redo</button><button onClick={() => { const next = { id: crypto.randomUUID(), page_index: pages.length, objects: [], search_text: "", version: 0 }; setPages([...pages, next]); selectPage(next); }}>Add page</button><button onClick={() => void movePage(-1)} disabled={!pageIndex}>Move page up</button><button onClick={() => void movePage(1)} disabled={pageIndex >= pages.length - 1}>Move page down</button><button onClick={() => void removePage()} disabled={pages.length < 2}>Delete page</button></div>
+    <p role="status">{message}</p>{conflict && <div><button onClick={reloadLatest}>Reload latest</button><button onClick={keepAsNewPage}>Keep my copy as new page</button></div>}
+    <div style={{ display: "flex", gap: 8 }}><div>{pages.map((page) => <button key={page.id} onClick={() => selectPage(page)}>Page {page.page_index + 1}</button>)}</div>
+      <div onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onClick={erase} style={{ position: "relative", width: "min(70vw, 600px)", aspectRatio: `${PAGE_WIDTH}/${PAGE_HEIGHT}`, background: "white", border: "1px solid #cbd5e1", touchAction: mode === "draw" ? "none" : "pan-y" }}>
+        <svg viewBox={`0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}`} width="100%" height="100%">{objects.filter((object): object is StrokeObject => object.type === "stroke").map((stroke) => <polyline key={stroke.id} onPointerDown={(event) => startObjectDrag(event, stroke.id)} points={stroke.points.map(([x, y]) => `${x * PAGE_WIDTH},${y * PAGE_HEIGHT}`).join(" ")} fill="none" stroke="black" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}</svg>
+        {objects.filter((object): object is TextObject => object.type === "text").map((text) => <div key={text.id} onPointerDown={(event) => startObjectDrag(event, text.id)} onPointerUp={(event) => resizeText(event, text.id)} style={{ position: "absolute", left: `${text.x * 100}%`, top: `${text.y * 100}%`, width: `${text.w * 100}%`, minHeight: `${text.h * 100}%`, fontSize: text.fontSize, resize: mode === "select" ? "both" : "none", overflow: "auto", cursor: mode === "select" ? "move" : "default" }}>{text.text}</div>)}
+      </div>
+    </div>
+    <small>{deriveSearchText(objects)}</small>
+  </section>;
+}

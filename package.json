@@ -1,0 +1,27 @@
+{
+  "name": "paper-radar",
+  "private": true,
+  "packageManager": "pnpm@10.15.0",
+  "workspaces": [
+    "apps/web",
+    "workers/gateway",
+    "packages/shared"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present && npm run test:python",
+    "lint": "eslint . && npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "test:web": "npm run test --workspace apps/web",
+    "test:worker": "npm run test --workspace workers/gateway",
+    "test:python": "uv run --project services/recommender pytest -q",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.3.0",
+    "eslint": "^9.39.1",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^3.2.4"
+  }
+}

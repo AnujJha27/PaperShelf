@@ -1,0 +1,26 @@
+import { describe, expect, it } from "vitest";
+import { deriveSearchText, moveObject, normalizePoint, reorderPages, simplifyStroke, smoothStroke, type NotebookPage, type StrokeObject, type TextObject } from "./notebookModel";
+
+describe("notebook model", () => {
+  it("normalizes pressure-aware points", () => {
+    expect(normalizePoint(50, 25, 100, 100, 0.7)).toEqual([0.5, 0.25, 0.7]);
+  });
+
+  it("simplifies only interior near-duplicate points", () => {
+    expect(simplifyStroke([[0, 0, 1], [0.001, 0.001, 1], [0.5, 0.5, 1]], 0.01)).toEqual([[0, 0, 1], [0.5, 0.5, 1]]);
+  });
+
+  it("smooths a sharp middle point while preserving stroke endpoints", () => {
+    expect(smoothStroke([[0, 0, 0.5], [0.2, 1, 0.5], [0.4, 0, 0.5]])).toEqual([[0, 0, 0.5], [0.2, 0.5, 0.5], [0.4, 0, 0.5]]);
+  });
+
+  it("moves objects, reorders pages, and derives typed search text", () => {
+    const text: TextObject = { type: "text", id: "t", x: 0.1, y: 0.2, w: 0.3, h: 0.1, text: "hello", fontSize: 16 };
+    const stroke: StrokeObject = { type: "stroke", id: "s", points: [[0, 0, 1]], width: 2 };
+    const page: NotebookPage = { id: "p", pageIndex: 0, objects: [text, stroke] };
+    expect(moveObject(text, 0.2, -0.5)).toMatchObject({ x: 0.3, y: 0 });
+    expect(moveObject(stroke, 0.2, 0.3).points).toEqual([[0.2, 0.3, 1]]);
+    expect(reorderPages([page, { ...page, id: "q", pageIndex: 1 }], 1, 0).map((item) => item.id)).toEqual(["q", "p"]);
+    expect(deriveSearchText(page.objects)).toBe("hello");
+  });
+});

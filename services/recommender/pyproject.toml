@@ -1,0 +1,22 @@
+[project]
+name = "paper-radar-recommender"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["pytest>=8.3", "scikit-learn>=1.6"]
+
+[project.optional-dependencies]
+ml = ["numpy>=2.0", "scikit-learn>=1.6", "sentence-transformers>=3.0"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+paper-radar = "paper_radar.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
