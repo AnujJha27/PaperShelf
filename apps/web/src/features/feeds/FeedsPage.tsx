@@ -8,6 +8,7 @@ import { PageContainer } from "../../components/layout/PageContainer";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { starterFeeds, uncreatedStarterFeeds } from "./starterFeeds";
 
 const empty: FeedInput = { name: "", description: "", include_keywords: "", exclude_keywords: "", priority_keywords: "" };
 
@@ -17,6 +18,7 @@ export function FeedsPage() {
   const [editing, setEditing] = useState<string>();
   const [modelStatuses, setModelStatuses] = useState<Record<string, FeedModelStatus>>({});
   const [message, setMessage] = useState("");
+  const [addingStarterFeeds, setAddingStarterFeeds] = useState(false);
 
   async function load() {
     try {
@@ -26,6 +28,24 @@ export function FeedsPage() {
     } catch (error) { setMessage((error as Error).message); }
   }
   useEffect(() => { void load(); }, []);
+
+  async function addStarterFeeds() {
+    const pending = uncreatedStarterFeeds(feeds);
+    if (!pending.length) return;
+    setAddingStarterFeeds(true);
+    try {
+      const created = [];
+      for (const template of pending) created.push(await saveFeed(template));
+      const nextFeeds = [...feeds, ...created].sort((a, b) => a.name.localeCompare(b.name));
+      setFeeds(nextFeeds);
+      setModelStatuses(await getFeedModelStatuses(nextFeeds.map((feed) => feed.id)));
+      setMessage(`${created.length} starter feeds added`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setAddingStarterFeeds(false);
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -55,7 +75,7 @@ export function FeedsPage() {
   }
 
   return <PageContainer>
-    <PageHeader title="Feeds" description="Shape the sources and topics that power your personal research radar." />
+    <PageHeader title="Feeds" description="Shape the sources and topics that power your personal research radar." action={uncreatedStarterFeeds(feeds).length ? <Button variant="outlined" onClick={() => void addStarterFeeds()} disabled={addingStarterFeeds}>{addingStarterFeeds ? "Adding starter feeds…" : `Add ${starterFeeds.length} starter feeds`}</Button> : undefined} />
     {message && <Alert severity={message === "Saved" ? "success" : "error"} onClose={() => setMessage("")} sx={{ mb: 2 }}>{message}</Alert>}
     <Paper component="form" onSubmit={submit} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}><Stack spacing={2}>
       <Typography variant="h2">{editing ? "Edit feed" : "Create a feed"}</Typography>
