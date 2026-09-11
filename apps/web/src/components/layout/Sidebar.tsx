@@ -12,7 +12,7 @@ const primaryItems = [
 
 export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolean; onToggle: () => void; onNavigate?: () => void }) {
   const feeds = useQuery<Feed[]>({ queryKey: ["feeds"], queryFn: listFeeds });
-  return <Box component="aside" sx={{ width: collapsed ? 64 : 232, flexShrink: 0, borderRight: 1, borderColor: "divider", bgcolor: "background.paper", transition: "width 160ms ease", display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+  return <Box component="aside" sx={{ width: collapsed ? 64 : 244, flexShrink: 0, borderRight: 1, borderColor: "divider", bgcolor: "background.paper", transition: "width 160ms ease", display: "flex", flexDirection: "column", minHeight: "100vh" }}>
     <Stack direction="row" sx={{ minHeight: 68, px: collapsed ? 1 : 2, alignItems: "center", justifyContent: collapsed ? "center" : "space-between" }}>
       {!collapsed && <Typography variant="h2" component="div" noWrap>{appName}</Typography>}
       <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"}><IconButton size="small" onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? ">" : "<"}</IconButton></Tooltip>

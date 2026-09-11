@@ -13,7 +13,12 @@ export function StatusPage({ status, title, actions, groupQueue = false }: { sta
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
   async function load() { try { setItems(status === "rejected" ? await listRejectedHistory() : await listPapersByStatus(status)); } catch (error) { setMessage((error as Error).message); } }
-  useEffect(() => { void load(); }, [status]);
+  useEffect(() => {
+    void load();
+    if (status !== "queue") return;
+    const interval = window.setInterval(() => void load(), 15_000);
+    return () => window.clearInterval(interval);
+  }, [status]);
   async function act(paper: Paper, action: PaperAction) {
     try { await updatePaperState(paper.id, action); await load(); } catch (error) { setMessage((error as Error).message); }
   }

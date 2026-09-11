@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, FormControl, InputLabel, LinearProgress, MenuItem, Select, Stack, Typography } from "@mui/material";
@@ -9,6 +9,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { PageContainer } from "../../components/layout/PageContainer";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { StatusBadge } from "../../components/ui/StatusBadge";
+import { trainingRefreshInterval } from "./trainingPolling";
 
 export function dedupeRecommendations(recommendations: Recommendation[]): Recommendation[] {
   const unique = new Map<string, Recommendation>();
@@ -29,17 +30,43 @@ export function TodayPage({ training = false }: { training?: boolean }) {
   const [searchParams] = useSearchParams();
   const [feedId, setFeedId] = useState<string | undefined>(() => searchParams.get("feed") ?? undefined);
   const [message, setMessage] = useState("");
+  const [batchPending, setBatchPending] = useState(false);
+  const batchStartedAt = useRef<number | undefined>(undefined);
+  const baselinePaperIds = useRef<Set<string>>(new Set());
   const [sort, setSort] = useState<"newest" | "recommended">("recommended");
   const [readiness, setReadiness] = useState<{ total: number; relevant: number; maybe: number; positive: number; negative: number; feedCoverage: number; balancedAccuracy: number; ready: boolean }>();
 
-  const recommendationsQuery = useQuery({ queryKey: ["recommendations", feedId ?? "all"], queryFn: () => listRecommendations(feedId) });
+  const recommendationsQuery = useQuery({ queryKey: ["recommendations", feedId ?? "all"], queryFn: () => listRecommendations(feedId), refetchInterval: trainingRefreshInterval(batchPending) });
   const feedsQuery = useQuery({ queryKey: ["feeds"], queryFn: listFeeds });
   const readinessQuery = useQuery({ queryKey: ["training-readiness"], queryFn: getTrainingReadiness, enabled: training });
   const settingsQuery = useQuery({ queryKey: ["app-settings"], queryFn: getSettings, enabled: training });
   useEffect(() => { if (recommendationsQuery.data) setItems(dedupeRecommendations(recommendationsQuery.data)); }, [recommendationsQuery.data]);
   useEffect(() => { if (feedsQuery.data) setFeeds(feedsQuery.data); }, [feedsQuery.data]);
   useEffect(() => { if (readinessQuery.data) setReadiness(readinessQuery.data); }, [readinessQuery.data]);
+  useEffect(() => {
+    if (!batchPending || !recommendationsQuery.data) return;
+    const hasNewPapers = recommendationsQuery.data.some((item) => !baselinePaperIds.current.has(item.paper_id));
+    const timedOut = batchStartedAt.current !== undefined && Date.now() - batchStartedAt.current > 120_000;
+    if (hasNewPapers || timedOut) {
+      setBatchPending(false);
+      batchStartedAt.current = undefined;
+      if (hasNewPapers) setMessage("New training papers are ready");
+    }
+  }, [batchPending, recommendationsQuery.data]);
   useEffect(() => { const error = recommendationsQuery.error ?? feedsQuery.error ?? readinessQuery.error ?? settingsQuery.error; if (error) setMessage((error as Error).message); }, [recommendationsQuery.error, feedsQuery.error, readinessQuery.error, settingsQuery.error]);
+
+  async function fetchTrainingBatch() {
+    baselinePaperIds.current = new Set((recommendationsQuery.data ?? []).map((item) => item.paper_id));
+    batchStartedAt.current = Date.now();
+    try {
+      await requestTrainingBatch(feedId ?? null, trainingBatchSize);
+      setBatchPending(true);
+      setMessage("Batch queued. Checking for new papers…");
+    } catch (error) {
+      batchStartedAt.current = undefined;
+      setMessage((error as Error).message);
+    }
+  }
 
   async function act(item: Recommendation, action: PaperAction) {
     setItems((current) => current.filter((candidate) => candidate.paper_id !== item.paper_id));
@@ -62,13 +89,13 @@ export function TodayPage({ training = false }: { training?: boolean }) {
   const trainingStatus = settingsQuery.data?.recommender_mode === "stable" ? "Stable" : !readiness ? "Loading" : readiness.total === 0 ? "Cold start" : readiness.ready ? "Ready" : readiness.balancedAccuracy > 0 ? "Training" : "Calibrating";
   const trainingBatchSize = settingsQuery.data?.training_batch_size ?? 25;
   return <PageContainer>
-    <PageHeader title={training ? "Training" : "Today"} description={training ? "Read full abstracts and label a small batch to teach your radar what matters." : "A calm shortlist of papers worth your attention today."} action={training && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}><StatusBadge label={trainingStatus} tone={trainingStatus === "Ready" || trainingStatus === "Stable" ? "success" : trainingStatus === "Training" ? "info" : "default"} /><Button variant="contained" onClick={() => requestTrainingBatch(feedId ?? null, trainingBatchSize).then(() => setMessage("Training batch queued")).catch((error: Error) => setMessage(error.message))}>Fetch {trainingBatchSize} more</Button></Stack>} />
+    <PageHeader title={training ? "Training" : "Today"} description={training ? "Read full abstracts and label a small batch to teach your radar what matters." : "A calm shortlist of papers worth your attention today."} action={training && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}><StatusBadge label={batchPending ? "Checking" : trainingStatus} tone={batchPending ? "info" : trainingStatus === "Ready" || trainingStatus === "Stable" ? "success" : trainingStatus === "Training" ? "info" : "default"} /><Button variant="contained" disabled={batchPending} onClick={() => void fetchTrainingBatch()}>{batchPending ? "Checking…" : `Fetch ${trainingBatchSize} more`}</Button></Stack>} />
     {training && <Stack spacing={1.25} sx={{ mb: 3 }}><Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 1 }}><Typography variant="body2" color="text.secondary">{readiness?.total ?? 0} labels · Relevant {readiness?.relevant ?? 0} · Maybe {readiness?.maybe ?? 0} · Not relevant {readiness?.negative ?? 0}</Typography><Typography variant="body2" color="text.secondary">{readiness?.balancedAccuracy.toFixed(2) ?? "0.00"} balanced accuracy</Typography></Stack><LinearProgress variant="determinate" value={Math.min(100, ((readiness?.total ?? 0) / 60) * 100)} aria-label="Training progress" />{readiness?.ready && settingsQuery.data?.recommender_mode !== "stable" && <Button size="small" variant="outlined" onClick={() => void enableStableMode()} sx={{ alignSelf: "flex-start" }}>Enable twice-daily discovery</Button>}</Stack>}
     <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 3 }}>
       <FormControl size="small" sx={{ minWidth: 190 }}><InputLabel id="feed-filter-label">Feed</InputLabel><Select labelId="feed-filter-label" value={feedId ?? ""} label="Feed" onChange={(event) => setFeedId(event.target.value || undefined)}><MenuItem value="">All feeds</MenuItem>{feeds.map((feed) => <MenuItem key={feed.id} value={feed.id}>{feed.name}</MenuItem>)}</Select></FormControl>
       {!training && <FormControl size="small" sx={{ minWidth: 160 }}><InputLabel id="sort-label">Sort</InputLabel><Select labelId="sort-label" value={sort} label="Sort" onChange={(event) => setSort(event.target.value as typeof sort)}><MenuItem value="recommended">Recommended</MenuItem><MenuItem value="newest">Newest</MenuItem></Select></FormControl>}
     </Stack>
-    {message && <Alert severity="error" onClose={() => setMessage("")} sx={{ mb: 2 }}>{message}</Alert>}
+    {message && <Alert severity={message.includes("queued") || message.includes("ready") ? "success" : "error"} onClose={() => setMessage("")} sx={{ mb: 2 }}>{message}</Alert>}
     {recommendationsQuery.isLoading ? <Typography color="text.secondary">Loading your papers…</Typography> : visible.map((item) => <PaperCard key={item.id} paper={item.paper} reason={item.reason_text} score={item.final_score} components={item.components} feedLabels={item.feedLabels} abstractMode={training ? "full" : "preview"} onAction={(action) => void act(item, action)} onAddToZotero={() => void addToZotero(item.paper_id, item.feed_id).then(() => setMessage("Added to Zotero")).catch((error: Error) => setMessage(error.message))} />)}
     {!recommendationsQuery.isLoading && !items.length && <EmptyState title={training ? "No training papers yet" : "Your radar is quiet"} description={training ? "Fetch a batch when you’re ready to label more examples." : "Fetch a training batch or check back after your next discovery run."} />}
   </PageContainer>;

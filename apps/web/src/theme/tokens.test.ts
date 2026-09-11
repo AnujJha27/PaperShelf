@@ -3,8 +3,8 @@ import { darkTokens, feedPalette, lightTokens } from "./tokens";
 
 describe("application theme tokens", () => {
   it("keeps dark and light surfaces distinct", () => {
-    expect(darkTokens.background).toBe("#0B0F14");
-    expect(lightTokens.background).toBe("#F3F6F8");
+    expect(darkTokens.background).toBe("#111614");
+    expect(lightTokens.background).toBe("#F4F6F2");
     expect(darkTokens.background).not.toBe(lightTokens.background);
   });
 
