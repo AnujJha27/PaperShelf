@@ -41,60 +41,62 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002
 select is((select count(*) from public.feeds), 0::bigint, 'user B cannot read user A feed');
 select is((select count(*) from public.paper_state), 0::bigint, 'user B cannot read user A paper state');
 select is((select count(*) from public.notebook_pages), 0::bigint, 'user B cannot read user A notebook page');
+
+-- Assert the SQLSTATE; Postgres error wording varies between versions.
 select throws_ok(
   $$insert into public.feeds (user_id, name, description)
     values ('00000000-0000-0000-0000-000000000001', 'bad', 'bad')$$,
   '42501',
-  'new row violates row-level security policy for table "feeds"',
+  null,
   'user B cannot write user A feed'
 );
 select throws_ok(
   $$insert into public.app_settings (user_id)
     values ('00000000-0000-0000-0000-000000000001')$$,
   '42501',
-  'new row violates row-level security policy for table "app_settings"',
+  null,
   'user B cannot write user A settings'
 );
 select throws_ok(
   $$insert into public.papers (title)
     values ('browser must not create canonical paper')$$,
   '42501',
-  'new row violates row-level security policy for table "papers"',
+  null,
   'authenticated browser cannot insert canonical papers'
 );
 select throws_ok(
   $$insert into public.paper_sources (paper_id, source_type, host)
     values ('00000000-0000-0000-0000-000000000010', 'repository', 'example.test')$$,
   '42501',
-  'new row violates row-level security policy for table "paper_sources"',
+  null,
   'authenticated browser cannot insert paper sources'
 );
 select throws_ok(
   $$update public.papers set title = 'browser must not update canonical paper'
     where id = '00000000-0000-0000-0000-000000000010'$$,
   '42501',
-  'new row violates row-level security policy for table "papers"',
+  null,
   'authenticated browser cannot update canonical papers'
 );
 select throws_ok(
   $$update public.paper_sources set host = 'attacker.example'
     where id = '00000000-0000-0000-0000-000000000011'$$,
   '42501',
-  'new row violates row-level security policy for table "paper_sources"',
+  null,
   'authenticated browser cannot update paper sources'
 );
 select throws_ok(
   $$insert into public.paper_state (user_id, paper_id, status)
     values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000010', 'read')$$,
   '42501',
-  'new row violates row-level security policy for table "paper_state"',
+  null,
   'user B cannot write user A paper state'
 );
 select throws_ok(
   $$insert into public.notebook_pages (user_id, paper_id, page_index)
     values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000010', 1)$$,
   '42501',
-  'new row violates row-level security policy for table "notebook_pages"',
+  null,
   'user B cannot write user A notebook page'
 );
 
