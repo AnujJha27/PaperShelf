@@ -77,7 +77,7 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
   await page.getByLabel("Name").fill("Methods");
   await page.getByLabel("Description").fill("Formal methods");
   await page.getByRole("button", { name: "Create feed" }).click();
-  await expect(page.getByText("Methods", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Methods", exact: true })).toBeVisible();
   await page.goto("/");
   await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/paper_state") && ["POST", "PATCH"].includes(response.request().method())), page.getByRole("button", { name: "Maybe" }).first().click()]);
   await page.goto("/queue");
@@ -89,7 +89,7 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
   await pdfText.selectText();
   await page.locator(".textLayer").dispatchEvent("mouseup");
   await page.getByRole("button", { name: "Pen" }).click();
-  const notebookPage = page.locator("section").filter({ hasText: "Notebook" }).locator("div[style*='aspect-ratio']");
+  const notebookPage = page.locator(".notebook-canvas");
   await notebookPage.dispatchEvent("pointerdown", { clientX: 40, clientY: 40, pointerId: 1, pressure: 0.5 });
   await notebookPage.dispatchEvent("pointerup", { clientX: 80, clientY: 80, pointerId: 1, pressure: 0.5 });
   page.once("dialog", (dialog) => void dialog.accept("typed fixture note"));
@@ -101,7 +101,7 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
   await expect(page.getByText("Proof certificates")).toBeVisible();
   await page.screenshot({ path: "test-results/research-workflow-library.png", fullPage: true });
   await page.goto("/");
-  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/paper_state") && ["POST", "PATCH"].includes(response.request().method())), page.getByRole("button", { name: "Not relevant" }).first().click()]);
+  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/paper_state") && ["POST", "PATCH"].includes(response.request().method())), page.getByRole("button", { name: "Nope" }).first().click()]);
   await page.goto("/history/rejected");
   await page.getByRole("button", { name: "Undo rejection" }).click();
   expect(notebook).toBe(true);
