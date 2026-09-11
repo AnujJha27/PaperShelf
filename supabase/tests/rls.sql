@@ -71,18 +71,22 @@ select throws_ok(
   null,
   'authenticated browser cannot insert paper sources'
 );
-select throws_ok(
-  $$update public.papers set title = 'browser must not update canonical paper'
-    where id = '00000000-0000-0000-0000-000000000010'$$,
-  '42501',
-  null,
+select is(
+  (with updated as (
+    update public.papers set title = 'browser must not update canonical paper'
+      where id = '00000000-0000-0000-0000-000000000010'
+    returning *
+  ) select count(*) from updated),
+  0::bigint,
   'authenticated browser cannot update canonical papers'
 );
-select throws_ok(
-  $$update public.paper_sources set host = 'attacker.example'
-    where id = '00000000-0000-0000-0000-000000000011'$$,
-  '42501',
-  null,
+select is(
+  (with updated as (
+    update public.paper_sources set host = 'attacker.example'
+      where id = '00000000-0000-0000-0000-000000000011'
+    returning *
+  ) select count(*) from updated),
+  0::bigint,
   'authenticated browser cannot update paper sources'
 );
 select throws_ok(
