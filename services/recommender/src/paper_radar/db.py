@@ -6,6 +6,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 from uuid import UUID
@@ -33,8 +34,12 @@ class SupabaseDB:
         if data is not None:
             headers["Content-Type"] = "application/json"
         request = Request(endpoint, method=method, headers=headers, data=data)
-        with urlopen(request, timeout=30) as response:
-            raw = response.read()
+        try:
+            with urlopen(request, timeout=30) as response:
+                raw = response.read()
+        except HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace").strip()
+            raise RuntimeError(f"Supabase {method} {table} returned {error.code}: {detail}") from error
         return json.loads(raw) if raw else []
 
     @classmethod

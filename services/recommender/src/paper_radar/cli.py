@@ -40,6 +40,7 @@ def main() -> None:
                     db.finish_run(run_id, "failed", {}, str(error))
                     result = {"status": "failed", "request_id": str(request_id), "stats": {}, "error": str(error)}
                 print(result)
+                _exit_if_failed(result["status"])
                 return
             feeds = db.active_feeds()
             if args.feed_id:
@@ -73,6 +74,12 @@ def main() -> None:
                 args.request_id,
             )
         print({"status": result.status, "request_id": str(result.request_id), "stats": result.stats, "error": result.error})
+        _exit_if_failed(result.status)
+
+
+def _exit_if_failed(status: str) -> None:
+    if status == "failed":
+        raise SystemExit(1)
 
 
 class _empty_adapter:

@@ -2,11 +2,16 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from paper_radar.cli import EnrichedAdapter, main
+from paper_radar.cli import EnrichedAdapter, _exit_if_failed, main
 from paper_radar.discovery.base import CandidateWork, FeedConfig
 
 
 class CliTests(unittest.TestCase):
+    def test_failed_result_returns_a_failed_process(self):
+        with self.assertRaises(SystemExit) as error:
+            _exit_if_failed("failed")
+        self.assertEqual(error.exception.code, 1)
+
     def test_empty_workflow_request_id_is_treated_as_missing(self):
         with patch.object(sys, "argv", ["paper-radar", "run", "--mode", "training", "--request-id", ""]):
             main()

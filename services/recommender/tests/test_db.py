@@ -1,4 +1,6 @@
 import unittest
+from io import BytesIO
+from urllib.error import HTTPError
 from unittest.mock import patch
 from uuid import UUID
 
@@ -7,6 +9,13 @@ from paper_radar.discovery.base import CandidateWork, FeedConfig
 
 
 class RunLifecycleTests(unittest.TestCase):
+    def test_supabase_conflict_identifies_the_request(self):
+        db = SupabaseDB("https://supabase.test", "key", "user")
+        error = HTTPError("https://supabase.test/rest/v1/papers", 409, "Conflict", {}, BytesIO(b'{"message":"duplicate key"}'))
+        with patch("paper_radar.db.urlopen", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, r"Supabase POST papers returned 409: .*duplicate key"):
+                db.request("POST", "papers", payload={"title": "Paper"})
+
     def test_create_run_promotes_existing_queued_request(self):
         run_id = "00000000-0000-0000-0000-000000000001"
         calls = []
