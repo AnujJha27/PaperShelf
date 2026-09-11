@@ -9,6 +9,15 @@ from paper_radar.discovery.base import CandidateWork, FeedConfig
 
 
 class RunLifecycleTests(unittest.TestCase):
+    def test_request_does_not_double_encode_query_values(self):
+        db = SupabaseDB("https://supabase.test", "key", "user")
+        response = type("Response", (), {"__enter__": lambda self: self, "__exit__": lambda self, *args: None, "read": lambda self: b"[]"})()
+        with patch("paper_radar.db.urlopen", return_value=response) as urlopen:
+            db.request("GET", "papers", {"doi": "eq.10.1609%2Faaai.v30i1.10295"})
+        request = urlopen.call_args.args[0]
+        self.assertIn("doi=eq.10.1609%2Faaai.v30i1.10295", request.full_url)
+        self.assertNotIn("%252F", request.full_url)
+
     def test_supabase_conflict_identifies_the_request(self):
         db = SupabaseDB("https://supabase.test", "key", "user")
         error = HTTPError("https://supabase.test/rest/v1/papers", 409, "Conflict", {}, BytesIO(b'{"message":"duplicate key"}'))

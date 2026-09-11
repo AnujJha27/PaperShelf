@@ -28,7 +28,7 @@ class SupabaseDB:
     def request(self, method: str, table: str, query: Mapping[str, str] | None = None, payload: object | None = None) -> list[dict]:
         endpoint = f"{self.url.rstrip('/')}/rest/v1/{table}"
         if query:
-            endpoint = f"{endpoint}?{urlencode(query)}"
+            endpoint = f"{endpoint}?{urlencode(query, safe='%')}"
         headers = {"apikey": self.service_key, "Authorization": f"Bearer {self.service_key}", "Accept": "application/json", "Prefer": "return=representation,resolution=merge-duplicates"}
         data = json.dumps(payload).encode() if payload is not None else None
         if data is not None:
