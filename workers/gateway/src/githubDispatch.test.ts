@@ -27,6 +27,7 @@ describe("training batch dispatch", () => {
     const response = await dispatchTrainingBatch(new Request("https://gateway.test", { method: "POST", headers: { Authorization: "Bearer token" }, body: JSON.stringify({ feedId: null, batchSize: 25 }) }), env, fetcher);
     expect(response.status).toBe(202);
     expect(request?.url).toContain("/actions/workflows/recommender.yml/dispatches");
+    expect(request?.headers.get("User-Agent")).toBe("PaperShelf/1.0");
   });
 
   it("dispatches from the configured repository ref", async () => {

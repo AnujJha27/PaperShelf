@@ -37,6 +37,7 @@ export async function dispatchTrainingBatch(request: Request, env: DispatchEnv, 
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
       "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "PaperShelf/1.0",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ ref: env.GITHUB_REF || "main", inputs: { mode: "training", request_id: requestId, feed_id: body.feedId ?? "", batch_size: String(batchSize) } }),
@@ -60,7 +61,7 @@ export async function dispatchZoteroSync(request: Request, env: DispatchEnv, fet
   if (!runResponse.ok) return Response.json({ error: "could not create ingestion run" }, { status: 502 });
   const response = await fetcher(`https://api.github.com/repos/${encodeURIComponent(env.GITHUB_OWNER)}/${encodeURIComponent(env.GITHUB_REPO)}/actions/workflows/${encodeURIComponent(env.GITHUB_WORKFLOW)}/dispatches`, {
     method: "POST",
-    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "PaperShelf/1.0", "Content-Type": "application/json" },
     body: JSON.stringify({ ref: env.GITHUB_REF || "main", inputs: { mode: "zotero_sync", request_id: requestId, feed_id: "", batch_size: "0" } }),
   });
   if (!response.ok) {
