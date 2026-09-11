@@ -1,27 +1,50 @@
+import { Card, CardContent, Divider, Link as MuiLink, Stack, Typography } from "@mui/material";
 import type { Paper, PaperAction } from "@paper-radar/shared";
 import { Link } from "react-router-dom";
+import { FeedBadge } from "../../components/ui/FeedBadge";
+import { AbstractPreview } from "./components/AbstractPreview";
+import { PaperActions } from "./components/PaperActions";
+import { PaperMetadata } from "./components/PaperMetadata";
+import { RecommendationBadge } from "./components/RecommendationBadge";
+import { TopicChips } from "./components/TopicChips";
 
-function authorsText(authors: Paper["authors"]) {
-  return authors.map((author) => typeof author === "string" ? author : author.name ?? author.display_name ?? "").filter(Boolean).join(", ");
-}
+type PaperCardProps = {
+  paper: Paper;
+  reason?: string;
+  score?: number;
+  components?: Record<string, number>;
+  feedLabel?: string;
+  feedLabels?: string[];
+  topics?: string[];
+  abstractMode?: "preview" | "full" | "compact";
+  onAction: (action: PaperAction) => void;
+  onAddToZotero?: () => void;
+  actions?: PaperAction["type"][];
+};
 
-export function PaperCard({ paper, reason, score, components, feedLabel, feedLabels, onAction, onAddToZotero, actions = ["relevant", "maybe", "not_relevant"] }: { paper: Paper; reason?: string; score?: number; components?: Record<string, number>; feedLabel?: string; feedLabels?: string[]; onAction: (action: PaperAction) => void; onAddToZotero?: () => void; actions?: PaperAction["type"][] }) {
+export function PaperCard({ paper, score, feedLabel, feedLabels, topics, abstractMode = "preview", onAction, onAddToZotero, actions = ["relevant", "maybe", "not_relevant"] }: PaperCardProps) {
   const labels = feedLabels?.length ? feedLabels : feedLabel ? [feedLabel] : [];
-  return <article>
-    <h2>{paper.title}</h2>
-    <p>{authorsText(paper.authors)}{paper.venue ? ` · ${paper.venue}` : ""}{paper.publication_year ? ` · ${paper.publication_year}` : ""}</p>
-    {labels.length > 0 && <p><small>Feeds: {labels.join(", ")}</small></p>}
-    {reason && <p><em>{reason}</em></p>}
-    {score !== undefined && <details><summary>Recommendation score</summary><p>{score.toFixed(3)}</p>{components && <ul>{Object.entries(components).map(([name, value]) => <li key={name}>{name}: {value.toFixed(3)}</li>)}</ul>}</details>}
-    {paper.in_zotero && <p><small>In Zotero</small></p>}
-    <p>{paper.abstract || "No abstract available."}</p>
-    <p><Link to={`/reading/${paper.id}`}>Read with notes</Link></p>
-    {paper.canonical_url && <p><a href={paper.canonical_url} target="_blank" rel="noreferrer">Open paper</a></p>}
-    <div>
-      {actions.map((action) => action === "reclassify" ? <span key={action}><button onClick={() => onAction({ type: action, priority: "maybe" })}>Move to Queue as Maybe</button><button onClick={() => onAction({ type: action, priority: "relevant" })}>Move to Queue as Relevant</button></span> : <button key={action} onClick={() => onAction({ type: action } as PaperAction)}>
-        {action === "not_relevant" ? "Not relevant" : action === "relevant" ? "Relevant" : action === "maybe" ? "Maybe" : action === "start_reading" ? "Start reading" : action === "mark_read" ? "Mark read" : action === "undo_rejection" ? "Undo rejection" : "Action"}
-      </button>)}
-      {onAddToZotero && !paper.in_zotero && <button onClick={onAddToZotero}>Add to Zotero</button>}
-    </div>
-  </article>;
+  return <Card component="article" sx={{ mb: 2 }}>
+    <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+      <Stack spacing={1.5}>
+        <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 1 }}>
+          <Typography component="h2" variant="h2" sx={{ maxWidth: 900 }}>{paper.title}</Typography>
+          <RecommendationBadge score={score} />
+        </Stack>
+        <PaperMetadata paper={paper} />
+        {labels.length > 0 && <Stack direction="row" spacing={0.75} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}><Typography variant="caption" color="text.secondary">Feeds:</Typography><span className="sr-only">Feeds: {labels.join(", ")}</span>{labels.map((label) => <FeedBadge key={label} name={label} />)}</Stack>}
+        <TopicChips topics={topics} />
+        {paper.in_zotero && <Typography variant="caption" color="success.main">✓ In Zotero</Typography>}
+        <AbstractPreview text={paper.abstract} mode={abstractMode} />
+        <Divider />
+        <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 1.5 }}>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+            <MuiLink component={Link} to={`/reading/${paper.id}`} underline="hover" sx={{ alignSelf: "center", fontSize: "0.82rem" }}>Read with notes</MuiLink>
+            {paper.canonical_url && <MuiLink href={paper.canonical_url} target="_blank" rel="noreferrer" underline="hover" sx={{ alignSelf: "center", fontSize: "0.82rem" }}>Open paper</MuiLink>}
+          </Stack>
+          <PaperActions actions={actions} onAction={onAction} onAddToZotero={onAddToZotero} inZotero={paper.in_zotero} />
+        </Stack>
+      </Stack>
+    </CardContent>
+  </Card>;
 }

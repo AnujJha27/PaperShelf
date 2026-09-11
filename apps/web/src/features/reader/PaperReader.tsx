@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Box, Button, FormControl, InputLabel, MenuItem, Paper, Select, Stack, Typography } from "@mui/material";
 import type { PaperAction } from "@paper-radar/shared";
 import { readerSources, type ReaderSource, type Rect } from "./readerModel";
 import { PdfDocument } from "./PdfDocument";
@@ -40,25 +41,18 @@ export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourc
   }, [current, onProgress, pageNumber, scale]);
   useEffect(() => { if (scrollContainer.current) scrollContainer.current.scrollTop = initialScroll; }, [initialScroll]);
 
-  if (!current) return <p>No public PDF source is available. Open the external paper link instead.</p>;
+  if (!current) return <Typography color="text.secondary">No public PDF source is available. Open the external paper link instead.</Typography>;
   const advanceSource = () => setUrlIndex((index) => { if (index >= urls.length - 1) setFailed(true); return Math.min(index + 1, urls.length - 1); });
-  return <main>
-    <header>
-      <label>Source <select value={urlIndex} onChange={(event) => setUrlIndex(Number(event.target.value))}>{urls.map((url, index) => { const source = sources.find((item) => item.id === url.sourceId); return <option key={`${url.sourceId}-${url.url}`} value={index}>{source?.version_kind ?? source?.host ?? url.sourceId} · {url.url.includes("/api/pdf/") ? "proxy" : "direct"}</option>; })}</select></label>
-      <button onClick={() => setPageNumber((page) => Math.max(1, page - 1))}>Previous page</button>
-      <span>Page {pageNumber}</span>
-      <button onClick={() => setPageNumber((page) => page + 1)}>Next page</button>
-      <button onClick={() => setScale((value) => Math.max(0.5, value - 0.1))}>−</button>
-      <button onClick={() => setScale((value) => Math.min(3, value + 0.1))}>+</button>
-      {inZotero ? <span>In Zotero</span> : onAddToZotero && <button onClick={onAddToZotero}>Add to Zotero</button>}
-      {onState && <><button onClick={() => onState({ type: "start_reading" })}>Start reading</button><button onClick={() => onState({ type: "mark_read" })}>Mark read</button></>}
-    </header>
-    {failed && <p role="alert">No public PDF source could be loaded. Try an external copy: {sources.map((source) => <a key={source.id} href={source.landing_url ?? source.pdf_url} target="_blank" rel="noreferrer">{source.host ?? source.id}</a>)}</p>}
-    <div ref={scrollContainer} onScroll={(event) => current && onProgress?.({ sourceId: current.sourceId, pageNumber, zoom: scale, scrollOffset: event.currentTarget.scrollTop })} onMouseUp={handleSelection} style={{ overflow: "auto", maxHeight: "80vh" }}>
+  return <Box component="section">
+    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mb: 1.5, alignItems: { xs: "stretch", sm: "center" } }}>
+      <FormControl size="small" sx={{ minWidth: 180 }}><InputLabel id="source-label">Source</InputLabel><Select labelId="source-label" label="Source" value={urlIndex} onChange={(event) => setUrlIndex(Number(event.target.value))}>{urls.map((url, index) => { const source = sources.find((item) => item.id === url.sourceId); return <MenuItem key={`${url.sourceId}-${url.url}`} value={index}>{source?.version_kind ?? source?.host ?? url.sourceId} · {url.url.includes("/api/pdf/") ? "proxy" : "direct"}</MenuItem>; })}</Select></FormControl><Button onClick={() => setPageNumber((page) => Math.max(1, page - 1))}>Previous</Button><Typography variant="body2" color="text.secondary">Page {pageNumber}</Typography><Button onClick={() => setPageNumber((page) => page + 1)}>Next</Button><Button onClick={() => setScale((value) => Math.max(0.5, value - 0.1))} aria-label="Zoom out">−</Button><Button onClick={() => setScale((value) => Math.min(3, value + 0.1))} aria-label="Zoom in">+</Button>{inZotero ? <Typography variant="caption" color="success.main">✓ In Zotero</Typography> : onAddToZotero && <Button onClick={onAddToZotero}>Save to Zotero</Button>}{onState && <><Button variant="outlined" onClick={() => onState({ type: "start_reading" })}>Start reading</Button><Button variant="contained" onClick={() => onState({ type: "mark_read" })}>Mark read</Button></>}
+    </Stack>
+    {failed && <Alert severity="warning" role="alert">No public PDF source could be loaded. Try an external copy: <Stack component="span" direction="row" spacing={1} sx={{ ml: 1, display: "inline-flex" }}>{sources.map((source) => <a key={source.id} href={source.landing_url ?? source.pdf_url} target="_blank" rel="noreferrer">{source.host ?? source.id}</a>)}</Stack></Alert>}
+    <Paper ref={scrollContainer} onScroll={(event) => current && onProgress?.({ sourceId: current.sourceId, pageNumber, zoom: scale, scrollOffset: event.currentTarget.scrollTop })} onMouseUp={handleSelection} sx={{ overflow: "auto", maxHeight: "80vh", p: { xs: 1, sm: 2 }, bgcolor: "background.paper" }}>
       <div style={{ position: "relative", width: "max-content" }}>
         <PdfDocument url={current.url} gatewayUrl={gatewayUrl} pageNumber={pageNumber} scale={scale} onError={advanceSource} onPageSize={() => undefined} onTextLayer={setTextLayer} />
         <HighlightLayer rects={[...highlights.filter((highlight) => highlight.source_id === current.sourceId && highlight.page_number === pageNumber).flatMap((highlight) => highlight.rects), ...rects]} />
       </div>
-    </div>
-  </main>;
+    </Paper>
+  </Box>;
 }

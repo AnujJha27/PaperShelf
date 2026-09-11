@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Alert, Button, FormControl, InputLabel, LinearProgress, MenuItem, Select, Stack, Typography } from "@mui/material";
 import type { Feed, PaperAction, Recommendation } from "@paper-radar/shared";
 import { addToZotero, getSettings, getTrainingReadiness, listFeeds, listRecommendations, requestTrainingBatch, updatePaperState, updateSettings } from "../../lib/api";
 import { PaperCard } from "../papers/PaperCard";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { PageContainer } from "../../components/layout/PageContainer";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { StatusBadge } from "../../components/ui/StatusBadge";
 
 export function dedupeRecommendations(recommendations: Recommendation[]): Recommendation[] {
   const unique = new Map<string, Recommendation>();
@@ -56,15 +61,15 @@ export function TodayPage({ training = false }: { training?: boolean }) {
   const visible = [...items].sort((left, right) => sort === "recommended" ? right.final_score - left.final_score : (right.created_at ?? "").localeCompare(left.created_at ?? ""));
   const trainingStatus = settingsQuery.data?.recommender_mode === "stable" ? "Stable" : !readiness ? "Loading" : readiness.total === 0 ? "Cold start" : readiness.ready ? "Ready" : readiness.balancedAccuracy > 0 ? "Training" : "Calibrating";
   const trainingBatchSize = settingsQuery.data?.training_batch_size ?? 25;
-  return <main>
-    <h1>{training ? "Training" : "Today"}</h1>
-    {training && <p>Full abstracts are shown so each label is deliberate. Status: {trainingStatus}. Labels: {readiness?.total ?? 0} total · Relevant {readiness?.relevant ?? 0} · Maybe {readiness?.maybe ?? 0} · Not relevant {readiness?.negative ?? 0} · feeds {readiness?.feedCoverage ?? 0} · accuracy {readiness?.balancedAccuracy.toFixed(2) ?? "0.00"}</p>}
-    <label>Feed <select value={feedId ?? ""} onChange={(event) => setFeedId(event.target.value || undefined)}><option value="">All feeds</option>{feeds.map((feed) => <option key={feed.id} value={feed.id}>{feed.name}</option>)}</select></label>
-    {!training && <label> Sort <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}><option value="recommended">Recommended</option><option value="newest">Newest</option></select></label>}
-    {training && <button onClick={() => requestTrainingBatch(feedId ?? null, trainingBatchSize).then(() => setMessage("Training batch queued")).catch((error: Error) => setMessage(error.message))}>Fetch {trainingBatchSize} more</button>}
-    {training && readiness?.ready && settingsQuery.data?.recommender_mode !== "stable" && <button onClick={() => void enableStableMode()}>Enable twice-daily discovery</button>}
-    <p role="status">{message}</p>
-    {visible.map((item) => <PaperCard key={item.id} paper={item.paper} reason={item.reason_text} score={item.final_score} components={item.components} feedLabels={item.feedLabels} onAction={(action) => void act(item, action)} onAddToZotero={() => void addToZotero(item.paper_id, item.feed_id).then(() => setMessage("Added to Zotero")).catch((error: Error) => setMessage(error.message))} />)}
-    {!items.length && <p>No papers here yet.</p>}
-  </main>;
+  return <PageContainer>
+    <PageHeader title={training ? "Training" : "Today"} description={training ? "Read full abstracts and label a small batch to teach your radar what matters." : "A calm shortlist of papers worth your attention today."} action={training && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}><StatusBadge label={trainingStatus} tone={trainingStatus === "Ready" || trainingStatus === "Stable" ? "success" : trainingStatus === "Training" ? "info" : "default"} /><Button variant="contained" onClick={() => requestTrainingBatch(feedId ?? null, trainingBatchSize).then(() => setMessage("Training batch queued")).catch((error: Error) => setMessage(error.message))}>Fetch {trainingBatchSize} more</Button></Stack>} />
+    {training && <Stack spacing={1.25} sx={{ mb: 3 }}><Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 1 }}><Typography variant="body2" color="text.secondary">{readiness?.total ?? 0} labels · Relevant {readiness?.relevant ?? 0} · Maybe {readiness?.maybe ?? 0} · Not relevant {readiness?.negative ?? 0}</Typography><Typography variant="body2" color="text.secondary">{readiness?.balancedAccuracy.toFixed(2) ?? "0.00"} balanced accuracy</Typography></Stack><LinearProgress variant="determinate" value={Math.min(100, ((readiness?.total ?? 0) / 60) * 100)} aria-label="Training progress" />{readiness?.ready && settingsQuery.data?.recommender_mode !== "stable" && <Button size="small" variant="outlined" onClick={() => void enableStableMode()} sx={{ alignSelf: "flex-start" }}>Enable twice-daily discovery</Button>}</Stack>}
+    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 3 }}>
+      <FormControl size="small" sx={{ minWidth: 190 }}><InputLabel id="feed-filter-label">Feed</InputLabel><Select labelId="feed-filter-label" value={feedId ?? ""} label="Feed" onChange={(event) => setFeedId(event.target.value || undefined)}><MenuItem value="">All feeds</MenuItem>{feeds.map((feed) => <MenuItem key={feed.id} value={feed.id}>{feed.name}</MenuItem>)}</Select></FormControl>
+      {!training && <FormControl size="small" sx={{ minWidth: 160 }}><InputLabel id="sort-label">Sort</InputLabel><Select labelId="sort-label" value={sort} label="Sort" onChange={(event) => setSort(event.target.value as typeof sort)}><MenuItem value="recommended">Recommended</MenuItem><MenuItem value="newest">Newest</MenuItem></Select></FormControl>}
+    </Stack>
+    {message && <Alert severity="error" onClose={() => setMessage("")} sx={{ mb: 2 }}>{message}</Alert>}
+    {recommendationsQuery.isLoading ? <Typography color="text.secondary">Loading your papers…</Typography> : visible.map((item) => <PaperCard key={item.id} paper={item.paper} reason={item.reason_text} score={item.final_score} components={item.components} feedLabels={item.feedLabels} abstractMode={training ? "full" : "preview"} onAction={(action) => void act(item, action)} onAddToZotero={() => void addToZotero(item.paper_id, item.feed_id).then(() => setMessage("Added to Zotero")).catch((error: Error) => setMessage(error.message))} />)}
+    {!recommendationsQuery.isLoading && !items.length && <EmptyState title={training ? "No training papers yet" : "Your radar is quiet"} description={training ? "Fetch a batch when you’re ready to label more examples." : "Fetch a training batch or check back after your next discovery run."} />}
+  </PageContainer>;
 }

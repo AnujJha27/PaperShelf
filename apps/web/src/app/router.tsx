@@ -1,6 +1,6 @@
-import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthGate } from "../auth/AuthGate";
-import { App, appName } from "./App";
+import { App } from "./App";
 import { FeedsPage } from "../features/feeds/FeedsPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { TodayPage } from "../features/inbox/TodayPage";
@@ -9,6 +9,7 @@ import { ReadingPage } from "../features/reading/ReadingPage";
 import { LibraryPage } from "../features/library/LibraryPage";
 import { RejectedPage } from "../features/history/RejectedPage";
 import { ReaderPage } from "../features/reader/ReaderPage";
+import { AppShell } from "../components/layout/AppShell";
 
 export const routePaths = [
   "/",
@@ -21,30 +22,9 @@ export const routePaths = [
   "/settings",
 ] as const;
 
-const labels: Record<(typeof routePaths)[number], string> = {
-  "/": "Today",
-  "/feeds": "Feeds",
-  "/queue": "Queue",
-  "/reading": "Reading",
-  "/library": "Library",
-  "/history/rejected": "Rejected",
-  "/training": "Training",
-  "/settings": "Settings",
-};
-
 function Shell() {
   return (
-    <>
-      <header>
-        <strong>{appName}</strong>
-        <nav aria-label="Main navigation">
-          {routePaths.map((path) => (
-            <NavLink key={path} to={path} end={path === "/"}>
-              {labels[path]}
-            </NavLink>
-          ))}
-        </nav>
-      </header>
+    <AppShell>
       <Routes>
         <Route path="/reading/:paperId" element={<ReaderPage />} />
         {routePaths.map((path) => (
@@ -60,7 +40,7 @@ function Shell() {
           } />
         ))}
       </Routes>
-    </>
+    </AppShell>
   );
 }
 

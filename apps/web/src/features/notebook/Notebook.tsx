@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { Alert, Box, Button, ButtonGroup, Stack, Typography } from "@mui/material";
 import { listNotebookPages, saveNotebookPage, type StoredNotebookPage } from "../../lib/api";
 import { deriveSearchText, moveObject, normalizePoint, reorderPages, simplifyStroke, smoothStroke, type NotebookObject, type StrokeObject, type TextObject } from "./notebookModel";
 import { deleteNotebookPage, setNotebookPageIndex } from "../../lib/api";
@@ -127,16 +128,14 @@ export function Notebook({ paperId }: { paperId: string }) {
     } catch (error) { setMessage((error as Error).message); }
   }
 
-  return <section>
-    <h2>Notebook</h2>
-    <div><button onClick={() => setMode("select")}>Select</button><button onClick={() => setMode("draw")}>Pen</button><button onClick={() => { setMode("text"); addText(); setMode("select"); }}>Text</button><button onClick={() => setMode("erase")}>Eraser</button><button onClick={undo}>Undo</button><button onClick={redo}>Redo</button><button onClick={() => { const next = { id: crypto.randomUUID(), page_index: pages.length, objects: [], search_text: "", version: 0 }; setPages([...pages, next]); selectPage(next); }}>Add page</button><button onClick={() => void movePage(-1)} disabled={!pageIndex}>Move page up</button><button onClick={() => void movePage(1)} disabled={pageIndex >= pages.length - 1}>Move page down</button><button onClick={() => void removePage()} disabled={pages.length < 2}>Delete page</button></div>
-    <p role="status">{message}</p>{conflict && <div><button onClick={reloadLatest}>Reload latest</button><button onClick={keepAsNewPage}>Keep my copy as new page</button></div>}
-    <div style={{ display: "flex", gap: 8 }}><div>{pages.map((page) => <button key={page.id} onClick={() => selectPage(page)}>Page {page.page_index + 1}</button>)}</div>
-      <div onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onClick={erase} style={{ position: "relative", width: "min(70vw, 600px)", aspectRatio: `${PAGE_WIDTH}/${PAGE_HEIGHT}`, background: "white", border: "1px solid #cbd5e1", touchAction: mode === "draw" ? "none" : "pan-y" }}>
+  return <Box component="section"><Stack direction="row" sx={{ mb: 1.5, justifyContent: "space-between", alignItems: "center" }}><Typography component="h2" variant="h2">Notebook</Typography><Typography variant="caption" color="text.secondary">Page {pageIndex + 1} of {Math.max(1, pages.length)}</Typography></Stack>
+    <Stack direction="row" spacing={1} useFlexGap sx={{ mb: 1.5, flexWrap: "wrap" }}><ButtonGroup size="small"><Button variant={mode === "select" ? "contained" : "outlined"} onClick={() => setMode("select")}>Select</Button><Button variant={mode === "draw" ? "contained" : "outlined"} onClick={() => setMode("draw")}>Pen</Button><Button onClick={() => { setMode("text"); addText(); setMode("select"); }}>Text</Button><Button variant={mode === "erase" ? "contained" : "outlined"} onClick={() => setMode("erase")}>Eraser</Button></ButtonGroup><ButtonGroup size="small"><Button onClick={undo} disabled={!history.length}>Undo</Button><Button onClick={redo} disabled={!future.length}>Redo</Button><Button onClick={() => { const next = { id: crypto.randomUUID(), page_index: pages.length, objects: [], search_text: "", version: 0 }; setPages([...pages, next]); selectPage(next); }}>Add page</Button></ButtonGroup><Button size="small" onClick={() => void movePage(-1)} disabled={!pageIndex}>Move up</Button><Button size="small" onClick={() => void movePage(1)} disabled={pageIndex >= pages.length - 1}>Move down</Button><Button size="small" color="error" onClick={() => void removePage()} disabled={pages.length < 2}>Delete</Button></Stack>
+    {message && <Alert severity={conflict ? "warning" : "error"} sx={{ mb: 1.5 }}>{message}{conflict && <Stack direction="row" spacing={1} sx={{ mt: 1 }}><Button size="small" onClick={reloadLatest}>Reload latest</Button><Button size="small" variant="outlined" onClick={keepAsNewPage}>Keep my copy as new page</Button></Stack>}</Alert>}
+    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}><Stack direction="row" spacing={0.5} sx={{ overflowX: "auto", maxWidth: { sm: 92 } }}>{pages.map((page) => <Button size="small" key={page.id} variant={page.page_index === pageIndex ? "contained" : "outlined"} onClick={() => selectPage(page)}>Page {page.page_index + 1}</Button>)}</Stack>
+      <Box className="notebook-canvas" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onClick={erase} sx={{ position: "relative", width: "min(70vw, 600px)", aspectRatio: `${PAGE_WIDTH}/${PAGE_HEIGHT}`, border: 1, borderColor: "divider", touchAction: mode === "draw" ? "none" : "pan-y", overflow: "hidden", "--notebook-bg": "#fff", "--notebook-dot": "#bfd0d8" }}>
         <svg viewBox={`0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}`} width="100%" height="100%">{objects.filter((object): object is StrokeObject => object.type === "stroke").map((stroke) => <polyline key={stroke.id} onPointerDown={(event) => startObjectDrag(event, stroke.id)} points={stroke.points.map(([x, y]) => `${x * PAGE_WIDTH},${y * PAGE_HEIGHT}`).join(" ")} fill="none" stroke="black" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}</svg>
         {objects.filter((object): object is TextObject => object.type === "text").map((text) => <div key={text.id} onPointerDown={(event) => startObjectDrag(event, text.id)} onPointerUp={(event) => resizeText(event, text.id)} style={{ position: "absolute", left: `${text.x * 100}%`, top: `${text.y * 100}%`, width: `${text.w * 100}%`, minHeight: `${text.h * 100}%`, fontSize: text.fontSize, resize: mode === "select" ? "both" : "none", overflow: "auto", cursor: mode === "select" ? "move" : "default" }}>{text.text}</div>)}
-      </div>
-    </div>
-    <small>{deriveSearchText(objects)}</small>
-  </section>;
+      </Box>
+    </Stack><Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>{deriveSearchText(objects) || "Your notes are searchable from Library."}</Typography>
+  </Box>;
 }
