@@ -54,4 +54,16 @@ describe("training batch dispatch", () => {
     expect(response.status).toBe(502);
     expect(calls.some((request) => request.method === "PATCH" && request.url.includes("ingestion_runs"))).toBe(true);
   });
+
+  it("exposes GitHub's status without exposing its response body", async () => {
+    const fetcher: typeof fetch = async (input, init) => {
+      const request = new Request(String(input), init);
+      if (request.url.endsWith("/auth/v1/user")) return Response.json({ id: "user" });
+      if (request.url.includes("/actions/")) return new Response("token details", { status: 403 });
+      return new Response(null, { status: 204 });
+    };
+    const response = await dispatchTrainingBatch(new Request("https://gateway.test", { method: "POST", headers: { Authorization: "Bearer token" }, body: JSON.stringify({ batchSize: 25 }) }), env, fetcher);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "workflow dispatch failed", github_status: 403 });
+  });
 });

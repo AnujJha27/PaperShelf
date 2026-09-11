@@ -43,7 +43,7 @@ export async function dispatchTrainingBatch(request: Request, env: DispatchEnv, 
   });
   if (!response.ok) {
     await markRunFailed(env, authorization, String(user.id), requestId, fetcher);
-    return Response.json({ error: "workflow dispatch failed" }, { status: 502 });
+    return Response.json({ error: "workflow dispatch failed", github_status: response.status }, { status: 502 });
   }
   return Response.json({ requestId, status: "queued" }, { status: 202 });
 }
