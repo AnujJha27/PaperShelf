@@ -3,6 +3,7 @@ name: web-deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
