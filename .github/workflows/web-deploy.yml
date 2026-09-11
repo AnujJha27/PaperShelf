@@ -20,6 +20,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_GATEWAY_URL: ${{ secrets.VITE_GATEWAY_URL }}
+          VITE_ALLOWED_EMAIL: ${{ secrets.VITE_ALLOWED_EMAIL }}
       - run: npx --yes wrangler@latest pages deploy apps/web/dist --project-name paper-radar-web --branch main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
