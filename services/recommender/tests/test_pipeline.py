@@ -13,7 +13,7 @@ class FakeAdapter:
 
     def search(self, feed, limit):
         self.limits.append(limit)
-        return [CandidateWork(f"Paper {index}", identifiers={"openalex": f"W{index}"}, metadata={"semantic_retrieval": True}) for index in range(self.count)]
+        return [CandidateWork(f"Paper {index}", identifiers={"openalex": f"W{index}"}, metadata={"semantic_similarity": 1.0}) for index in range(self.count)]
 
 
 class PipelineTests(unittest.TestCase):
@@ -33,7 +33,7 @@ class PipelineTests(unittest.TestCase):
     def test_excluded_candidates_are_not_persisted(self):
         class Adapter(FakeAdapter):
             def search(self, feed, limit):
-                return [CandidateWork("Good", abstract="formal methods", metadata={"semantic_retrieval": True}), CandidateWork("Education", abstract="education", metadata={"semantic_retrieval": True})]
+                return [CandidateWork("Good", abstract="formal methods", metadata={"semantic_similarity": 0.8}), CandidateWork("Education", abstract="education", metadata={"semantic_similarity": 0.8})]
 
         adapter = Adapter()
         db = InMemoryDB()
@@ -52,6 +52,31 @@ class PipelineTests(unittest.TestCase):
         db = InMemoryDB()
         result = run_pipeline("training", [FeedConfig("topic", min_semantic_similarity=0.35)], PipelineSettings(), db, Adapter())
         self.assertEqual(result.stats["recommendations"], 1)
+
+    def test_scope_gate_requires_real_similarity_or_keyword_evidence(self):
+        class Adapter:
+            def search(self, feed, limit):
+                return [
+                    CandidateWork("Poor description hit", metadata={"semantic_similarity": 0.1}),
+                    CandidateWork("Strong semantic result", metadata={"semantic_similarity": 0.8}),
+                    CandidateWork("Graph theory result", metadata={"semantic_similarity": 0.1}),
+                    CandidateWork("Graph theory benchmark", metadata={"semantic_similarity": 0.99}),
+                    CandidateWork("Unknown year result", publication_year=None, metadata={"semantic_similarity": 0.8}),
+                ]
+
+        db = InMemoryDB()
+        result = run_pipeline("training", [FeedConfig("topic", include_keywords=["graph theory"], exclude_keywords=["benchmark"], min_semantic_similarity=0.5)], PipelineSettings(), db, Adapter())
+        self.assertEqual(result.stats["recommendations"], 3)
+        self.assertEqual(result.stats["candidates_in_scope"], 3)
+
+    def test_degraded_feed_is_reported_without_failing_run(self):
+        class Adapter(FakeAdapter):
+            warnings = [{"provider": "OpenAlex", "category": "rate_limited", "message": "provider rate limited request"}]
+
+        result = run_pipeline("training", [FeedConfig("topic")], PipelineSettings(), InMemoryDB(), Adapter(1))
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.stats["feeds_degraded"], 1)
+        self.assertEqual(result.stats["warnings"][0]["provider"], "OpenAlex")
 
     def test_old_candidates_are_outside_a_feed_cutoff(self):
         class Adapter:

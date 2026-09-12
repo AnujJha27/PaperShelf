@@ -121,20 +121,12 @@ export async function getDiagnostics() {
 }
 
 export async function listRecommendations(feedId?: string): Promise<Recommendation[]> {
-  let query = client().from("recommendations").select("*, paper:papers(*), feed:feeds(id,name)").order("created_at", { ascending: false });
-  if (feedId) query = query.eq("feed_id", feedId);
-  const { data, error } = await query;
+  const { data, error } = await client().rpc("list_current_recommendations", { p_feed_id: feedId ?? null, p_limit: 200 });
   if (error) throw error;
-  const recommendations = data as Recommendation[];
-  const paperIds = [...new Set(recommendations.map((item) => item.paper_id))];
-  const { data: states, error: stateError } = paperIds.length
-    ? await client().from("paper_state").select("paper_id,status,queue_priority,rejected_at,updated_at").in("paper_id", paperIds)
-    : { data: [], error: null };
-  if (stateError) throw stateError;
-  const stateByPaper = new Map((states ?? []).map((state: { paper_id: string }) => [state.paper_id, state as unknown as Recommendation["state"]]));
-  const papers = await addZoteroStatus(recommendations.map((item) => item.paper));
+  const recommendations = (data ?? []).map((item: Recommendation & { feed_labels?: string[] }) => ({ ...item, feedLabels: item.feed_labels ?? [] }));
+  const papers = await addZoteroStatus(recommendations.map((item: Recommendation & { feed_labels?: string[] }) => item.paper));
   const statusByPaper = new Map(papers.map((paper) => [paper.id, paper.in_zotero]));
-  return recommendations.map((item) => ({ ...item, state: stateByPaper.get(item.paper_id), paper: { ...item.paper, in_zotero: statusByPaper.get(item.paper.id) ?? false } }));
+  return recommendations.map((item: Recommendation & { feed_labels?: string[] }) => ({ ...item, paper: { ...item.paper, in_zotero: statusByPaper.get(item.paper.id) ?? false } }));
 }
 
 export async function listPapersByStatus(status: PaperState["status"]): Promise<Array<Paper & { state: PaperState }>> {
@@ -184,52 +176,10 @@ export async function searchLibrary(query: string, filters: { feedId?: string; y
   return papers.filter((paper) => noteMatches.has(paper.id) || [paper.title, paper.abstract ?? "", JSON.stringify(paper.authors)].join(" ").toLowerCase().includes(needle));
 }
 
-const feedbackWeights: Record<PaperAction["type"], number> = {
-  relevant: 1,
-  maybe: 0.35,
-  not_relevant: 1,
-  start_reading: 0.2,
-  mark_read: 0.4,
-  undo_rejection: 0,
-  reclassify: 1,
-};
-
-export function feedbackEventForAction(userId: string, paperId: string, action: PaperAction, feedId?: string) {
-  const label = action.type === "reclassify" ? action.priority : action.type === "undo_rejection" ? null : action.type;
-  return {
-    user_id: userId,
-    paper_id: paperId,
-    feed_id: feedId ?? null,
-    event_type: action.type === "reclassify" ? action.priority : action.type,
-    label,
-    weight: action.type === "reclassify" ? (action.priority === "maybe" ? 0.35 : 1) : feedbackWeights[action.type],
-  };
-}
-
 export async function updatePaperState(paperId: string, action: PaperAction, feedId?: string): Promise<PaperState> {
-  const user = await currentUser();
-  const { data: existing, error: readError } = await client().from("paper_state").select("status, queue_priority, started_reading_at, completed_at, rejected_at").eq("paper_id", paperId).maybeSingle();
-  if (readError) throw readError;
-  const next = transitionPaperState(existing ?? { status: "inbox" }, action);
-  const now = new Date().toISOString();
-  const values = {
-    user_id: user.id,
-    paper_id: paperId,
-    status: next.status,
-    queue_priority: next.queue_priority ?? null,
-    started_reading_at: next.status === "reading" ? existing?.started_reading_at ?? now : next.status === "read" ? existing?.started_reading_at ?? now : null,
-    completed_at: next.status === "read" ? existing?.completed_at ?? now : null,
-    rejected_at: next.status === "rejected" ? existing?.rejected_at ?? now : null,
-    updated_at: now,
-  };
-  const { error } = await client().from("paper_state").upsert(values);
+  const { data, error } = await client().rpc("classify_paper", { p_paper_id: paperId, p_action: action.type, p_feed_id: feedId ?? null, p_priority: action.type === "reclassify" ? action.priority : null });
   if (error) throw error;
-  const feedback = feedbackEventForAction(user.id, paperId, action, feedId);
-  if (feedback.weight > 0 || action.type === "undo_rejection") {
-    const { error: feedbackError } = await client().from("feedback_events").insert(feedback);
-    if (feedbackError) throw feedbackError;
-  }
-  return next;
+  return data as PaperState;
 }
 
 export async function requestTrainingBatch(feedId: string | null, batchSize: number) {

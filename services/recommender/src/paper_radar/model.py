@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from collections.abc import Sequence
 from uuid import UUID
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+from .embeddings import DEFAULT_MODEL, EMBEDDING_DIMENSION
+
+FEATURE_SCHEMA_VERSION = 1
+FEATURE_SCHEMA = "paper-embedding-plus-signals-v1"
 
 
 @dataclass(frozen=True)
@@ -78,12 +83,18 @@ def train_feed_model(feed_id: UUID, examples: Sequence[TrainingExample]) -> Mode
 
 
 def predict_probability(result: ModelResult, features: Sequence[float]) -> float:
+    if len(result.coefficients) != len(features):
+        raise ValueError("model feature width does not match input")
     value = result.intercept + sum(weight * feature for weight, feature in zip(result.coefficients, features))
     return 1.0 / (1.0 + math.exp(-max(-60.0, min(60.0, value))))
 
 
 def model_record(result: ModelResult, user_id: str, scope: str, feed_id: str | None = None, model_name: str = "bge-logistic") -> dict:
-    return {"user_id": user_id, "scope": scope, "feed_id": feed_id, "model_name": model_name, "model_type": result.model_type, "coefficients": result.coefficients, "intercept": result.intercept, "metrics": result.metrics, "label_counts": result.label_counts}
+    return {"user_id": user_id, "scope": scope, "feed_id": feed_id, "model_name": model_name, "model_type": result.model_type, "coefficients": result.coefficients, "intercept": result.intercept, "metrics": result.metrics, "label_counts": result.label_counts, "feature_schema": FEATURE_SCHEMA, "feature_schema_version": FEATURE_SCHEMA_VERSION, "feature_width": len(result.coefficients), "embedding_model": DEFAULT_MODEL, "embedding_dimension": EMBEDDING_DIMENSION}
+
+
+def model_is_compatible(record: Mapping, feature_width: int) -> bool:
+    return record.get("feature_schema") == FEATURE_SCHEMA and record.get("feature_schema_version") == FEATURE_SCHEMA_VERSION and record.get("feature_width") == feature_width and record.get("model_type") == "logistic_regression" and record.get("embedding_model") == DEFAULT_MODEL and record.get("embedding_dimension") == EMBEDDING_DIMENSION
 
 
 def ready_for_stable(result: ModelResult) -> bool:

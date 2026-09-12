@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, FormControl, InputLabel, LinearProgress, MenuItem, Select, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, FormControl, InputLabel, LinearProgress, MenuItem, Select, Stack, Typography } from "@mui/material";
 import type { Feed, PaperAction, Recommendation } from "@paper-radar/shared";
 import { addToZotero, getSettings, getTrainingReadiness, listFeeds, listRecommendations, requestTrainingBatch, updatePaperState, updateSettings } from "../../lib/api";
 import { PaperCard } from "../papers/PaperCard";
@@ -34,6 +34,8 @@ export function TodayPage({ training = false }: { training?: boolean }) {
   const batchStartedAt = useRef<number | undefined>(undefined);
   const baselinePaperIds = useRef<Set<string>>(new Set());
   const [sort, setSort] = useState<"newest" | "recommended">("recommended");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const navigate = useNavigate();
   const [readiness, setReadiness] = useState<{ total: number; relevant: number; maybe: number; positive: number; negative: number; feedCoverage: number; balancedAccuracy: number; ready: boolean }>();
 
   const recommendationsQuery = useQuery({ queryKey: ["recommendations", feedId ?? "all"], queryFn: () => listRecommendations(feedId), refetchInterval: trainingRefreshInterval(batchPending) });
@@ -86,6 +88,30 @@ export function TodayPage({ training = false }: { training?: boolean }) {
   }
 
   const visible = [...items].sort((left, right) => sort === "recommended" ? right.final_score - left.final_score : (right.created_at ?? "").localeCompare(left.created_at ?? ""));
+  useEffect(() => setSelectedIndex((index) => Math.min(index, Math.max(0, visible.length - 1))), [visible.length]);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement;
+      if (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+      if (!visible.length) return;
+      if (["j", "ArrowDown", "k", "ArrowUp"].includes(event.key)) {
+        event.preventDefault();
+        setSelectedIndex((index) => event.key === "j" || event.key === "ArrowDown" ? Math.min(visible.length - 1, index + 1) : Math.max(0, index - 1));
+        return;
+      }
+      const item = visible[selectedIndex];
+      if (!item) return;
+      if (event.key === "1" || event.key === "2" || event.key === "3") {
+        event.preventDefault();
+        void act(item, { type: event.key === "1" ? "not_relevant" : event.key === "2" ? "maybe" : "relevant" });
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        navigate(`/reading/${item.paper_id}`);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navigate, selectedIndex, visible]);
   const trainingStatus = settingsQuery.data?.recommender_mode === "stable" ? "Stable" : !readiness ? "Loading" : readiness.total === 0 ? "Cold start" : readiness.ready ? "Ready" : readiness.balancedAccuracy > 0 ? "Training" : "Calibrating";
   const trainingBatchSize = settingsQuery.data?.training_batch_size ?? 25;
   return <PageContainer>
@@ -96,7 +122,8 @@ export function TodayPage({ training = false }: { training?: boolean }) {
       {!training && <FormControl size="small" sx={{ minWidth: 160 }}><InputLabel id="sort-label">Sort</InputLabel><Select labelId="sort-label" value={sort} label="Sort" onChange={(event) => setSort(event.target.value as typeof sort)}><MenuItem value="recommended">Recommended</MenuItem><MenuItem value="newest">Newest</MenuItem></Select></FormControl>}
     </Stack>
     {message && <Alert severity={message.includes("queued") || message.includes("ready") ? "success" : "error"} onClose={() => setMessage("")} sx={{ mb: 2 }}>{message}</Alert>}
-    {recommendationsQuery.isLoading ? <Typography color="text.secondary">Loading your papers…</Typography> : visible.map((item) => <PaperCard key={item.id} paper={item.paper} reason={item.reason_text} score={item.final_score} components={item.components} feedLabels={item.feedLabels} abstractMode={training ? "full" : "preview"} onAction={(action) => void act(item, action)} onAddToZotero={() => void addToZotero(item.paper_id, item.feed_id).then(() => setMessage("Added to Zotero")).catch((error: Error) => setMessage(error.message))} />)}
+    {!recommendationsQuery.isLoading && visible.length > 0 && <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>Keyboard: J/K or ↑/↓ move · 1 no · 2 maybe · 3 relevant · Enter opens</Typography>}
+    {recommendationsQuery.isLoading ? <Typography color="text.secondary">Loading your papers…</Typography> : visible.map((item, index) => <Box key={item.id} sx={{ outline: index === selectedIndex ? "2px solid" : "none", outlineColor: "primary.main", borderRadius: 2 }}>{<PaperCard paper={item.paper} reason={item.reason_text} score={item.final_score} components={item.components} feedLabels={item.feedLabels} abstractMode={training ? "full" : "preview"} onAction={(action) => void act(item, action)} onAddToZotero={() => void addToZotero(item.paper_id, item.feed_id).then(() => setMessage("Added to Zotero")).catch((error: Error) => setMessage(error.message))} />}</Box>)}
     {!recommendationsQuery.isLoading && !items.length && <EmptyState title={training ? "No training papers yet" : "Your radar is quiet"} description={training ? "Fetch a batch when you’re ready to label more examples." : "Fetch a training batch or check back after your next discovery run."} />}
   </PageContainer>;
 }

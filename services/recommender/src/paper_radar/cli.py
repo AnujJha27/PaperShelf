@@ -108,22 +108,32 @@ class EnrichedAdapter:
         self.crossref = crossref
         self.semantic_scholar = semantic_scholar
         self.unpaywall = unpaywall
+        self.warnings: list[dict[str, str]] = []
+
+    def _warning(self, provider: str, error: BaseException) -> None:
+        code = getattr(error, "code", None)
+        category = "rate_limited" if code == 429 else "request_budget" if "budget" in str(error).lower() else "network"
+        self.warnings.append({"provider": provider, "category": category, "message": "provider rate limited request" if category == "rate_limited" else category.replace("_", " ")})
 
     def search(self, feed: FeedConfig, limit: int):
+        self.warnings = []
         try:
             candidates = self.discovery.search(feed, limit)
-        except (OSError, RuntimeError):
+        except (OSError, RuntimeError) as error:
+            self._warning(type(self.discovery).__name__.removesuffix("Adapter"), error)
             return []
         for candidate in candidates:
             try:
                 candidate = self.crossref.repair(candidate)
-            except (OSError, RuntimeError):
+            except (OSError, RuntimeError) as error:
+                self._warning("Crossref", error)
                 pass
             candidate = self.semantic_scholar.enrich(candidate)
             if candidate.doi and self.unpaywall:
                 try:
                     record = self.unpaywall.lookup(candidate.doi)
-                except (OSError, RuntimeError):
+                except (OSError, RuntimeError) as error:
+                    self._warning("Unpaywall", error)
                     record = None
                 if record:
                     candidate.metadata["unpaywall"] = dict(record)

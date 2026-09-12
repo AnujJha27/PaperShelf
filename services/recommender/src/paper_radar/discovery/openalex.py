@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from math import ceil
 from typing import Any
 
 from .base import CandidateWork, DiscoveryAdapter, FeedConfig
@@ -10,7 +11,15 @@ from ..identity import canonicalize_doi
 
 def openalex_queries(feed: FeedConfig, limit: int) -> list[str]:
     del limit
-    return list(dict.fromkeys([feed.description, *feed.include_keywords, *feed.priority_keywords]))
+    queries = [feed.description]
+    priority = list(dict.fromkeys(feed.priority_keywords))
+    if priority:
+        queries.append(" ".join(priority))
+    keywords = [keyword for keyword in dict.fromkeys(feed.include_keywords) if keyword not in priority]
+    group_size = ceil(len(keywords) / 2) if keywords else 0
+    if group_size:
+        queries.extend(" ".join(keywords[index:index + group_size]) for index in range(0, len(keywords), group_size))
+    return list(dict.fromkeys(query.strip() for query in queries if query.strip()))
 
 
 def _abstract(work: Mapping[str, Any]) -> str | None:
@@ -56,7 +65,7 @@ class OpenAlexAdapter:
     def search(self, feed: FeedConfig, limit: int) -> list[CandidateWork]:
         results: dict[str, CandidateWork] = {}
         for query in openalex_queries(feed, limit):
-            params = {"search": query, "per-page": str(limit)}
+            params = {"search": query, "per-page": str(min(100, max(10, limit * 2)))}
             params["filter"] = f"from_publication_date:{feed.min_publication_year}-01-01"
             if self.api_key:
                 params["api_key"] = self.api_key

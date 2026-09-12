@@ -23,7 +23,13 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(openalex_queries(FeedConfig(description="formal methods", include_keywords=["Lean"]), 10), ["formal methods", "Lean"])
 
     def test_openalex_queries_include_priority_keywords_without_duplicates(self):
-        self.assertEqual(openalex_queries(FeedConfig(description="topic", include_keywords=["Lean"], priority_keywords=["Lean", "proof certificates"]), 10), ["topic", "Lean", "proof certificates"])
+        self.assertEqual(openalex_queries(FeedConfig(description="topic", include_keywords=["Lean"], priority_keywords=["Lean", "proof certificates"]), 10), ["topic", "Lean proof certificates"])
+
+    def test_openalex_queries_bound_large_keyword_lists(self):
+        feed = FeedConfig("topic", include_keywords=[f"keyword {index}" for index in range(40)], priority_keywords=["priority one", "priority two"])
+        first = openalex_queries(feed, 25)
+        self.assertEqual(first, openalex_queries(feed, 25))
+        self.assertLessEqual(len(first), 4)
 
     def test_openalex_search_applies_feed_publication_cutoff(self):
         with patch("paper_radar.discovery.openalex.get_json", return_value={}) as get_json:

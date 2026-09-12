@@ -3,7 +3,7 @@ create extension if not exists pgtap with schema extensions;
 begin;
 set local search_path = public, extensions;
 
-select plan(24);
+select plan(27);
 
 select has_table('public', 'feeds', 'feeds table exists');
 select has_table('public', 'papers', 'papers table exists');
@@ -36,6 +36,9 @@ values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000
 select is((select count(*) from public.feeds), 1::bigint, 'user A sees own feed');
 select is((select count(*) from public.paper_state), 1::bigint, 'user A sees own paper state');
 select is((select count(*) from public.notebook_pages), 1::bigint, 'user A sees own notebook page');
+select is((public.classify_paper('00000000-0000-0000-0000-000000000010', 'relevant', (select id from public.feeds limit 1), null)->>'status'), 'queue', 'classify RPC returns the new state');
+select is((select status from public.paper_state where user_id = '00000000-0000-0000-0000-000000000001' and paper_id = '00000000-0000-0000-0000-000000000010'), 'queue', 'classify RPC updates paper state');
+select is((select count(*) from public.feedback_events where user_id = '00000000-0000-0000-0000-000000000001'), 1::bigint, 'classify RPC records feedback atomically');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
 select is((select count(*) from public.feeds), 0::bigint, 'user B cannot read user A feed');

@@ -36,6 +36,7 @@ export type AppSettings = {
 
 export type Paper = {
   id: string;
+  doi?: string | null;
   title: string;
   abstract: string | null;
   authors: Array<{ name?: string; display_name?: string }> | string[];

@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
-import { pdfDocumentRequest } from "./readerModel";
+import { pdfDocumentRequest, type PdfErrorKind } from "./readerModel";
 
-export function PdfDocument({ url, gatewayUrl, pageNumber, scale, onError, onPageSize, onTextLayer }: { url: string; gatewayUrl: string; pageNumber: number; scale: number; onError: () => void; onPageSize: (size: { width: number; height: number }) => void; onTextLayer: (element: HTMLElement) => void }) {
+export function PdfDocument({ url, gatewayUrl, pageNumber, scale, onError, onNumPages, onPageSize, onTextLayer }: { url: string; gatewayUrl: string; pageNumber: number; scale: number; onError: (kind: PdfErrorKind) => void; onNumPages: (numPages: number) => void; onPageSize: (size: { width: number; height: number }) => void; onTextLayer: (element: HTMLElement) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const textLayer = useRef<HTMLDivElement>(null);
 
@@ -17,8 +17,14 @@ export function PdfDocument({ url, gatewayUrl, pageNumber, scale, onError, onPag
       return task.promise;
     }).then(async (pdf) => {
       if (cancelled) return;
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale });
+      onNumPages(pdf.numPages);
+      if (pageNumber < 1 || pageNumber > pdf.numPages) {
+        onError("page");
+        return;
+      }
+      try {
+        const page = await pdf.getPage(pageNumber);
+        const viewport = page.getViewport({ scale });
       const target = canvas.current;
       const textTarget = textLayer.current;
       if (!target || !textTarget) return;
@@ -35,7 +41,10 @@ export function PdfDocument({ url, gatewayUrl, pageNumber, scale, onError, onPag
       const layer = new TextLayer({ textContentSource: await page.getTextContent(), container: textTarget, viewport });
       await layer.render();
       onTextLayer(textTarget);
-    }).catch(() => { if (!cancelled) onError(); });
+      } catch {
+        if (!cancelled) onError("render");
+      }
+    }).catch(() => { if (!cancelled) onError("document"); });
     return () => { cancelled = true; loading?.destroy(); };
   }, [url, gatewayUrl, pageNumber, scale, onError, onPageSize, onTextLayer]);
 

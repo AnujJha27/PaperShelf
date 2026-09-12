@@ -1,7 +1,7 @@
 import unittest
 from uuid import UUID
 
-from paper_radar.model import TrainingExample, model_record, predict_probability, train_feed_model, train_global_model
+from paper_radar.model import TrainingExample, model_is_compatible, model_record, predict_probability, train_feed_model, train_global_model
 
 
 def examples(count: int = 20):
@@ -31,3 +31,14 @@ class ModelTests(unittest.TestCase):
         second = train_global_model(examples())
         self.assertEqual(first.coefficients, second.coefficients)
         self.assertEqual(first.intercept, second.intercept)
+
+    def test_model_metadata_must_match_feature_schema(self):
+        result = train_global_model(examples())
+        record = model_record(result, "user", "global")
+        self.assertTrue(model_is_compatible(record, 2))
+        self.assertFalse(model_is_compatible({**record, "feature_width": 1}, 2))
+        self.assertFalse(model_is_compatible({**record, "embedding_model": "other"}, 2))
+
+    def test_prediction_rejects_mismatched_width(self):
+        with self.assertRaisesRegex(ValueError, "feature width"):
+            predict_probability(train_global_model(examples()), (1.0,))

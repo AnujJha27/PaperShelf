@@ -100,7 +100,7 @@ class RunLifecycleTests(unittest.TestCase):
             if method == "GET" and table == "feeds":
                 return [{"updated_at": "2026-09-08T00:00:00+00:00"}]
             if method == "GET" and table == "feed_embeddings":
-                return [{"feed_id": "feed", "updated_at": "2026-09-07T00:00:00+00:00"}]
+                return [{"feed_id": "feed", "updated_at": "2026-09-07T00:00:00+00:00", "model_name": "BAAI/bge-small-en-v1.5", "embedding_dimension": 384}]
             return []
 
         db.request = request
@@ -118,7 +118,7 @@ class RunLifecycleTests(unittest.TestCase):
             if method == "GET" and table == "papers":
                 return [{"updated_at": "2026-09-08T00:00:00+00:00"}]
             if method == "GET" and table == "paper_embeddings":
-                return [{"paper_id": "paper", "updated_at": "2026-09-07T00:00:00+00:00"}]
+                return [{"paper_id": "paper", "updated_at": "2026-09-07T00:00:00+00:00", "model_name": "BAAI/bge-small-en-v1.5", "embedding_dimension": 384}]
             return []
 
         db.request = request
@@ -126,3 +126,37 @@ class RunLifecycleTests(unittest.TestCase):
             db.ensure_paper_embedding("paper", CandidateWork("Changed title"))
 
         self.assertEqual([call[0:2] for call in calls if call[1] == "paper_embeddings"], [("GET", "paper_embeddings"), ("PATCH", "paper_embeddings")])
+
+    def test_candidate_features_reuses_feed_scoring_context(self):
+        calls = []
+        db = SupabaseDB("https://supabase.test", "key", "user")
+
+        def request(method, table, query=None, payload=None):
+            calls.append((method, table, query, payload))
+            if method == "GET" and table == "feeds":
+                return [{"updated_at": "2026-09-08T00:00:00+00:00"}]
+            if method == "GET" and table == "feed_embeddings":
+                if "embedding" in str((query or {}).get("select", "")):
+                    return [{"embedding": [0.1] * 384}]
+                return [{"updated_at": "2026-09-08T00:00:00+00:00", "model_name": "BAAI/bge-small-en-v1.5", "embedding_dimension": 384}]
+            if method == "GET" and table == "recommender_models":
+                return []
+            if method == "GET" and table == "zotero_items":
+                return []
+            if method == "GET" and table == "papers":
+                return [{"updated_at": "2026-09-08T00:00:00+00:00"}]
+            if method == "GET" and table == "paper_embeddings":
+                if "embedding" in str((query or {}).get("select", "")):
+                    return [{"embedding": [0.1] * 384}]
+                return [{"updated_at": "2026-09-08T00:00:00+00:00", "model_name": "BAAI/bge-small-en-v1.5", "embedding_dimension": 384}]
+            return []
+
+        db.request = request
+        feed = FeedConfig("topic", id="feed", user_id="user", include_keywords=["topic"])
+        with patch("paper_radar.embeddings.embed_texts", return_value=[[0.1] * 384]):
+            db.candidate_features(CandidateWork("Paper one", metadata={"_paper_id": "paper-one"}), feed)
+            db.candidate_features(CandidateWork("Paper two", metadata={"_paper_id": "paper-two"}), feed)
+
+        self.assertEqual(sum(table == "recommender_models" for _, table, _, _ in calls), 2)
+        self.assertEqual(sum(table == "zotero_items" for _, table, _, _ in calls), 1)
+        self.assertEqual(sum(table == "feed_embeddings" for _, table, _, _ in calls), 2)

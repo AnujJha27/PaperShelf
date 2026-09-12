@@ -1,6 +1,11 @@
 export type Rect = { x: number; y: number; width: number; height: number };
 export type ReaderSource = { id: string; pdf_url: string; landing_url?: string | null; host?: string | null; version_kind?: string | null };
 export type PdfDocumentRequest = string | { url: string; httpHeaders: { Authorization: string } };
+export type PdfErrorKind = "document" | "page" | "render";
+
+export function clampPage(page: number, numPages: number): number {
+  return Math.min(Math.max(1, page), Math.max(1, numPages));
+}
 
 export function normalizeRects(rects: Rect[], pageWidth: number, pageHeight: number): Rect[] {
   if (pageWidth <= 0 || pageHeight <= 0) throw new Error("page dimensions must be positive");

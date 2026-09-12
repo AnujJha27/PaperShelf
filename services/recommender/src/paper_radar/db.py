@@ -4,7 +4,7 @@ import json
 import math
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
@@ -15,9 +15,17 @@ from uuid import UUID
 from .discovery.base import CandidateWork, FeedConfig
 from .identity import canonicalize_doi, choose_existing_paper, normalize_title
 from .pdf_resolver import rank_oa_sources
-from .model import ModelResult, predict_probability
+from .model import ModelResult, model_is_compatible, predict_probability
 from .ranking import CandidateFeatures
 from .zotero_sync import weak_zotero_similarity
+
+
+@dataclass
+class ScoringContext:
+    feed_embedding: list[float]
+    global_model: Mapping | None
+    feed_model: Mapping | None
+    zotero_metadata: list[Mapping]
 
 
 @dataclass
@@ -25,6 +33,7 @@ class SupabaseDB:
     url: str
     service_key: str
     user_id: str
+    _scoring_contexts: dict[str, ScoringContext] = field(default_factory=dict, init=False, repr=False)
 
     def request(self, method: str, table: str, query: Mapping[str, str] | None = None, payload: object | None = None) -> list[dict]:
         endpoint = f"{self.url.rstrip('/')}/rest/v1/{table}"
@@ -155,13 +164,13 @@ class SupabaseDB:
     def ensure_feed_embedding(self, feed: FeedConfig) -> None:
         if not feed.id:
             return
+        from .embeddings import DEFAULT_MODEL, EMBEDDING_DIMENSION, embed_texts
         feed_rows = self.request("GET", "feeds", {"id": f"eq.{feed.id}", "select": "updated_at"})
-        existing = self.request("GET", "feed_embeddings", {"feed_id": f"eq.{feed.id}", "select": "feed_id,updated_at"})
-        if existing and (not feed_rows or existing[0].get("updated_at", "") >= feed_rows[0].get("updated_at", "")):
+        existing = self.request("GET", "feed_embeddings", {"feed_id": f"eq.{feed.id}", "select": "feed_id,updated_at,model_name,embedding_dimension"})
+        if existing and existing[0].get("model_name") == DEFAULT_MODEL and existing[0].get("embedding_dimension") == EMBEDDING_DIMENSION and (not feed_rows or existing[0].get("updated_at", "") >= feed_rows[0].get("updated_at", "")):
             return
-        from .embeddings import DEFAULT_MODEL, embed_texts
         vector = embed_texts([feed.description])[0]
-        payload = {"feed_id": feed.id, "model_name": DEFAULT_MODEL, "embedding": vector}
+        payload = {"feed_id": feed.id, "model_name": DEFAULT_MODEL, "embedding_dimension": EMBEDDING_DIMENSION, "embedding": vector}
         if existing:
             self.request("PATCH", "feed_embeddings", {"feed_id": f"eq.{feed.id}"}, {key: value for key, value in payload.items() if key != "feed_id"})
         else:
@@ -169,12 +178,12 @@ class SupabaseDB:
 
     def ensure_paper_embedding(self, paper_id: str, candidate: CandidateWork) -> None:
         paper_rows = self.request("GET", "papers", {"id": f"eq.{paper_id}", "select": "updated_at"})
-        existing = self.request("GET", "paper_embeddings", {"paper_id": f"eq.{paper_id}", "select": "paper_id,updated_at"})
-        if existing and (not paper_rows or existing[0].get("updated_at", "") >= paper_rows[0].get("updated_at", "")):
+        existing = self.request("GET", "paper_embeddings", {"paper_id": f"eq.{paper_id}", "select": "paper_id,updated_at,model_name,embedding_dimension"})
+        from .embeddings import DEFAULT_MODEL, EMBEDDING_DIMENSION, embed_texts
+        if existing and existing[0].get("model_name") == DEFAULT_MODEL and existing[0].get("embedding_dimension") == EMBEDDING_DIMENSION and (not paper_rows or existing[0].get("updated_at", "") >= paper_rows[0].get("updated_at", "")):
             return
-        from .embeddings import DEFAULT_MODEL, embed_texts
         vector = embed_texts([(candidate.title, candidate.abstract)])[0]
-        payload = {"paper_id": paper_id, "model_name": DEFAULT_MODEL, "embedding": vector}
+        payload = {"paper_id": paper_id, "model_name": DEFAULT_MODEL, "embedding_dimension": EMBEDDING_DIMENSION, "embedding": vector}
         if existing:
             self.request("PATCH", "paper_embeddings", {"paper_id": f"eq.{paper_id}"}, {key: value for key, value in payload.items() if key != "paper_id"})
         else:
@@ -182,35 +191,47 @@ class SupabaseDB:
 
     def candidate_features(self, candidate: CandidateWork, feed: FeedConfig) -> CandidateFeatures:
         paper_id = str(candidate.metadata.get("_paper_id") or candidate.doi or candidate.identifiers.get("openalex") or candidate.title.casefold())
-        self.ensure_feed_embedding(feed)
+        context = self._scoring_context(feed)
         self.ensure_paper_embedding(paper_id, candidate)
         paper_row = self.request("GET", "paper_embeddings", {"paper_id": f"eq.{paper_id}", "select": "embedding"})
-        feed_row = self.request("GET", "feed_embeddings", {"feed_id": f"eq.{feed.id}", "select": "embedding"}) if feed.id else []
         paper_vector = _parse_vector(paper_row[0].get("embedding")) if paper_row else []
-        feed_vector = _parse_vector(feed_row[0].get("embedding")) if feed_row else []
-        semantic = _cosine(paper_vector, feed_vector)
+        semantic = _cosine(paper_vector, context.feed_embedding)
         text = " ".join((candidate.title, candidate.abstract or "", str(candidate.metadata))).casefold()
         keywords = tuple(dict.fromkeys((*feed.include_keywords, *feed.priority_keywords)))
         keyword_score = sum(keyword.casefold() in text for keyword in keywords) / len(keywords) if keywords else 0.0
-        global_row = self.request("GET", "recommender_models", {"user_id": f"eq.{self.user_id}", "scope": "eq.global", "feed_id": "is.null", "select": "coefficients,intercept,metrics,label_counts,model_type"})
-        feed_row_model = self.request("GET", "recommender_models", {"user_id": f"eq.{self.user_id}", "scope": "eq.feed", "feed_id": f"eq.{feed.id}", "select": "coefficients,intercept,metrics,label_counts,model_type"}) if feed.id else []
         freshness = _freshness(candidate)
-        zotero_items = self.request("GET", "zotero_items", {"user_id": f"eq.{self.user_id}", "select": "metadata"})
-        zotero_similarity = weak_zotero_similarity(paper_vector, [row.get("metadata", {}) for row in zotero_items]) if paper_vector else 0.0
+        zotero_similarity = weak_zotero_similarity(paper_vector, [row.get("metadata", {}) for row in context.zotero_metadata]) if paper_vector else 0.0
         citation_count = candidate.metadata.get("citation_count", candidate.metadata.get("cited_by_count", 0))
         model_features = [*paper_vector, semantic, min(1.0, keyword_score), freshness, min(1.0, float(citation_count or 0) / 100), zotero_similarity]
         return CandidateFeatures(
             paper_id=paper_id,
             semantic_similarity=semantic,
             keyword_score=keyword_score,
-            global_probability=_model_probability(global_row[0], model_features) if global_row and paper_vector else None,
-            feed_probability=_model_probability(feed_row_model[0], model_features) if feed_row_model and paper_vector else None,
+            global_probability=_model_probability(context.global_model, model_features) if context.global_model and paper_vector else None,
+            feed_probability=_model_probability(context.feed_model, model_features) if context.feed_model and paper_vector else None,
             zotero_similarity=zotero_similarity,
             freshness_impact=freshness,
             citation_impact=min(1.0, float(citation_count or 0) / 100),
             min_semantic_similarity=feed.min_semantic_similarity,
             diversity_vector=tuple(paper_vector),
         )
+
+    def _scoring_context(self, feed: FeedConfig) -> ScoringContext:
+        key = str(feed.id or feed.description)
+        if key not in self._scoring_contexts:
+            self.ensure_feed_embedding(feed)
+            feed_rows = self.request("GET", "feed_embeddings", {"feed_id": f"eq.{feed.id}", "select": "embedding"}) if feed.id else []
+            model_fields = "coefficients,intercept,metrics,label_counts,model_type,feature_schema,feature_schema_version,feature_width,embedding_model,embedding_dimension"
+            global_rows = self.request("GET", "recommender_models", {"user_id": f"eq.{self.user_id}", "scope": "eq.global", "feed_id": "is.null", "select": model_fields})
+            feed_models = self.request("GET", "recommender_models", {"user_id": f"eq.{self.user_id}", "scope": "eq.feed", "feed_id": f"eq.{feed.id}", "select": model_fields}) if feed.id else []
+            zotero_items = self.request("GET", "zotero_items", {"user_id": f"eq.{self.user_id}", "select": "metadata"})
+            self._scoring_contexts[key] = ScoringContext(
+                _parse_vector(feed_rows[0].get("embedding")) if feed_rows else [],
+                global_rows[0] if global_rows else None,
+                feed_models[0] if feed_models else None,
+                zotero_items,
+            )
+        return self._scoring_contexts[key]
 
 
 def _parse_vector(value: object) -> list[float]:
@@ -231,7 +252,9 @@ def _cosine(left: list[float], right: list[float]) -> float:
     return sum(a * b for a, b in zip(left, right)) / denominator if denominator else 0.0
 
 
-def _model_probability(row: Mapping, vector: list[float]) -> float:
+def _model_probability(row: Mapping, vector: list[float]) -> float | None:
+    if not model_is_compatible(row, len(vector)):
+        return None
     result = ModelResult([float(value) for value in row.get("coefficients", [])], float(row.get("intercept", 0)), {}, {}, str(row.get("model_type", "logistic_regression")))
     return predict_probability(result, vector)
 
