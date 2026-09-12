@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const user = { id: "user-1", email: "researcher@example.test" };
-const feed = { id: "feed-1", user_id: user.id, name: "Methods", description: "Formal methods", include_keywords: ["proof"], exclude_keywords: [], priority_keywords: [], min_semantic_similarity: 0.35, is_active: true };
+const feed = { id: "feed-1", user_id: user.id, name: "Methods", description: "Formal methods", include_keywords: ["proof"], exclude_keywords: [], priority_keywords: [], min_semantic_similarity: 0.35, min_publication_year: 2018, is_active: true };
 const papers = [
   { id: "paper-1", title: "Proof certificates", abstract: "A full fixture abstract.", authors: [{ name: "A Researcher" }], venue: "Journal", publication_year: 2026, canonical_url: "https://paper.test/1" },
   { id: "paper-2", title: "Rejected fixture", abstract: "Another fixture abstract.", authors: [{ name: "B Researcher" }], venue: "Journal", publication_year: 2026, canonical_url: "https://paper.test/2" },
@@ -38,9 +38,18 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
       if (request.method() === "POST") return route.fulfill({ json: [feed] });
       return route.fulfill({ json: [feed] });
     }
-    if (url.pathname === "/rest/v1/recommendations") {
+    if (url.pathname === "/rest/v1/recommendations" || url.pathname === "/rest/v1/rpc/list_current_recommendations") {
       const visible = papers.filter((paper) => !states[paper.id] || states[paper.id].status === "inbox");
       return route.fulfill({ json: visible.map((paper) => ({ id: `rec-${paper.id}`, paper_id: paper.id, feed_id: feed.id, final_score: 0.8, components: { semantic_similarity: 0.3 }, reason_text: "Fixture scope match", created_at: "2026-09-07T00:00:00Z", paper, feed, state: states[paper.id] ?? null })) });
+    }
+    if (url.pathname === "/rest/v1/rpc/classify_paper") {
+      const parsed = JSON.parse(request.postData() ?? "{}");
+      const action = parsed.p_action as string;
+      const paperId = parsed.p_paper_id as string;
+      const current = states[paperId]?.status ?? "inbox";
+      const next = action === "relevant" || action === "maybe" ? "queue" : action === "not_relevant" ? "rejected" : action === "start_reading" && ["inbox", "queue"].includes(current) ? "reading" : action === "mark_read" && current === "reading" ? "read" : action === "undo_rejection" && current === "rejected" ? "inbox" : action === "reclassify" && current === "rejected" ? "queue" : current;
+      states[paperId] = { status: next, queue_priority: next === "queue" ? action === "maybe" || parsed.p_priority === "maybe" ? "maybe" : "relevant" : null };
+      return route.fulfill({ json: states[paperId] });
     }
     if (url.pathname === "/rest/v1/paper_state") {
       if (request.method() === "PATCH" || request.method() === "POST") {
@@ -79,7 +88,7 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
   await page.getByRole("button", { name: "Create feed" }).click();
   await expect(page.getByRole("heading", { name: "Methods", exact: true })).toBeVisible();
   await page.goto("/");
-  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/paper_state") && ["POST", "PATCH"].includes(response.request().method())), page.getByRole("button", { name: "Maybe" }).first().click()]);
+  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/rpc/classify_paper")), page.getByRole("button", { name: "Maybe" }).first().click()]);
   await page.goto("/queue");
   await expect(page.getByRole("heading", { name: "Relevant", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Read with notes" }).first().click();
@@ -92,16 +101,18 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
   const notebookPage = page.locator(".notebook-canvas");
   await notebookPage.dispatchEvent("pointerdown", { clientX: 40, clientY: 40, pointerId: 1, pressure: 0.5 });
   await notebookPage.dispatchEvent("pointerup", { clientX: 80, clientY: 80, pointerId: 1, pressure: 0.5 });
-  page.once("dialog", (dialog) => void dialog.accept("typed fixture note"));
   await page.getByRole("button", { name: "Text" }).click();
+  await notebookPage.dispatchEvent("pointerdown", { clientX: 120, clientY: 120, pointerId: 2, pressure: 0.5 });
+  await notebookPage.locator("textarea").fill("typed fixture note");
+  await notebookPage.locator("textarea").press("Control+Enter");
   await page.waitForTimeout(900);
-  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/paper_state") && ["POST", "PATCH"].includes(response.request().method())), page.getByRole("button", { name: "Start reading" }).click()]);
-  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/paper_state") && ["POST", "PATCH"].includes(response.request().method())), page.getByRole("button", { name: "Mark read" }).click()]);
+  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/rpc/classify_paper")), page.getByRole("button", { name: "Start reading" }).click()]);
+  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/rpc/classify_paper")), page.getByRole("button", { name: "Mark read" }).click()]);
   await page.goto("/library");
   await expect(page.getByText("Proof certificates")).toBeVisible();
   await page.screenshot({ path: "test-results/research-workflow-library.png", fullPage: true });
   await page.goto("/");
-  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/paper_state") && ["POST", "PATCH"].includes(response.request().method())), page.getByRole("button", { name: "Nope" }).first().click()]);
+  await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/rpc/classify_paper")), page.getByRole("button", { name: "Nope" }).first().click()]);
   await page.goto("/history/rejected");
   await page.getByRole("button", { name: "Undo rejection" }).click();
   expect(notebook).toBe(true);

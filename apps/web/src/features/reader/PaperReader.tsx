@@ -49,12 +49,11 @@ export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourc
       return;
     }
     if (kind === "page") {
-      if (numPages) setPageNumber((page) => clampPage(page, numPages));
-      else setPageNumber(1);
+      setPageNumber(1);
       return;
     }
     setPageError(true);
-  }, [numPages, urls.length]);
+  }, [urls.length]);
   const onPageSize = useCallback(() => undefined, []);
 
   useEffect(() => {

@@ -103,6 +103,6 @@ export const starterFeeds: FeedInput[] = [
 ];
 
 export function uncreatedStarterFeeds(feeds: Pick<Feed, "name">[]) {
-  const existing = new Set(feeds.map((feed) => feed.name.trim().toLowerCase()));
+  const existing = new Set(feeds.map((feed) => feed.name?.trim().toLowerCase()).filter(Boolean));
   return starterFeeds.filter((feed) => !existing.has(feed.name.trim().toLowerCase()));
 }
