@@ -25,6 +25,15 @@ class RunLifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, r"Supabase POST papers returned 409: .*duplicate key"):
                 db.request("POST", "papers", payload={"title": "Paper"})
 
+    def test_get_retries_transient_gateway_timeout(self):
+        db = SupabaseDB("https://supabase.test", "key", "user")
+        timeout = HTTPError("https://supabase.test/rest/v1/papers", 504, "Gateway Timeout", {}, BytesIO(b"timeout"))
+        response = type("Response", (), {"__enter__": lambda self: self, "__exit__": lambda self, *args: None, "read": lambda self: b"[]"})()
+        with patch("paper_radar.db.urlopen", side_effect=[timeout, response]) as urlopen, patch("paper_radar.db.sleep") as sleep:
+            self.assertEqual(db.request("GET", "papers", {"select": "id"}), [])
+        self.assertEqual(urlopen.call_count, 2)
+        sleep.assert_called_once_with(1)
+
     def test_create_run_promotes_existing_queued_request(self):
         run_id = "00000000-0000-0000-0000-000000000001"
         calls = []

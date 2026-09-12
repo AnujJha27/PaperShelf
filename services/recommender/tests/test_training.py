@@ -27,6 +27,21 @@ class TrainingTests(unittest.TestCase):
                 raise AssertionError("cold start should not save a model")
         self.assertEqual(train_and_store_models(DB()), {"examples": 1, "models": 0})
 
+    def test_training_only_fetches_metadata_for_feedback_papers(self):
+        queries = []
+
+        class DB:
+            user_id = "user"
+            def request(self, method, table, query):
+                if table == "feedback_events": return [{"paper_id": "b", "label": "relevant", "weight": 1}, {"paper_id": "a", "label": "not_relevant", "weight": 1}]
+                if table == "paper_embeddings": return [{"paper_id": "a", "embedding": [1, 0]}, {"paper_id": "b", "embedding": [0, 1]}]
+                if table == "papers": queries.append(query); return [{"id": "a"}, {"id": "b"}]
+                return []
+            def save_model(self, model): pass
+
+        train_and_store_models(DB())
+        self.assertEqual(queries[0]["id"], "in.(a,b)")
+
     def test_feed_training_ignores_behavioral_events_for_explicit_label_threshold(self):
         rows = [
             {"paper_id": "a", "event_type": "start_reading", "weight": 0.2},

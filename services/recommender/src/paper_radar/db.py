@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
+from time import sleep
 from uuid import UUID
 
 from .discovery.base import CandidateWork, FeedConfig
@@ -34,13 +35,18 @@ class SupabaseDB:
         if data is not None:
             headers["Content-Type"] = "application/json"
         request = Request(endpoint, method=method, headers=headers, data=data)
-        try:
-            with urlopen(request, timeout=30) as response:
-                raw = response.read()
-        except HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace").strip()
-            raise RuntimeError(f"Supabase {method} {table} returned {error.code}: {detail}") from error
-        return json.loads(raw) if raw else []
+        for attempt in range(3):
+            try:
+                with urlopen(request, timeout=30) as response:
+                    raw = response.read()
+                return json.loads(raw) if raw else []
+            except HTTPError as error:
+                detail = error.read().decode("utf-8", errors="replace").strip()
+                if method == "GET" and error.code in {502, 503, 504} and attempt < 2:
+                    sleep(2 ** attempt)
+                    continue
+                raise RuntimeError(f"Supabase {method} {table} returned {error.code}: {detail}") from error
+        raise RuntimeError(f"Supabase {method} {table} request exhausted retries")
 
     @classmethod
     def from_env(cls) -> "SupabaseDB":

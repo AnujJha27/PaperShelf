@@ -76,7 +76,8 @@ def examples_from_rows(
 def train_and_store_models(db) -> dict[str, int]:
     feedback = db.request("GET", "feedback_events", {"user_id": f"eq.{db.user_id}", "select": "paper_id,feed_id,event_type,label,weight,created_at", "order": "created_at.asc"})
     rows = db.request("GET", "paper_embeddings", {"select": "paper_id,embedding"})
-    papers_rows = db.request("GET", "papers", {"select": "id,publication_year,citation_count"})
+    paper_ids = sorted({str(row["paper_id"]) for row in feedback if row.get("paper_id")})
+    papers_rows = db.request("GET", "papers", {"id": f"in.({','.join(paper_ids)})", "select": "id,publication_year,citation_count"}) if paper_ids else []
     embeddings = {str(row["paper_id"]): row["embedding"] for row in rows}
     papers = {str(row["id"]): row for row in papers_rows}
     examples = examples_from_rows(feedback, embeddings, papers)
