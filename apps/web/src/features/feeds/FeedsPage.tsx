@@ -19,6 +19,7 @@ export function FeedsPage() {
   const [modelStatuses, setModelStatuses] = useState<Record<string, FeedModelStatus>>({});
   const [message, setMessage] = useState("");
   const [addingStarterFeeds, setAddingStarterFeeds] = useState(false);
+  const pendingStarterFeeds = uncreatedStarterFeeds(feeds);
 
   async function load() {
     try {
@@ -76,7 +77,7 @@ export function FeedsPage() {
   }
 
   return <PageContainer>
-    <PageHeader title="Feeds" description="Shape the sources and topics that power your personal research radar." action={uncreatedStarterFeeds(feeds).length ? <Button variant="outlined" onClick={() => void addStarterFeeds()} disabled={addingStarterFeeds}>{addingStarterFeeds ? "Adding starter feeds…" : `Add ${starterFeeds.length} starter feeds`}</Button> : undefined} />
+    <PageHeader title="Feeds" description="Shape the sources and topics that power your personal research radar." action={pendingStarterFeeds.length ? <Button variant="outlined" onClick={() => void addStarterFeeds()} disabled={addingStarterFeeds}>{addingStarterFeeds ? "Adding starter feeds…" : `Add ${pendingStarterFeeds.length} starter feed${pendingStarterFeeds.length === 1 ? "" : "s"}`}</Button> : undefined} />
     {message && <Alert severity={message === "Saved" ? "success" : "error"} onClose={() => setMessage("")} sx={{ mb: 2 }}>{message}</Alert>}
     <Paper component="form" onSubmit={submit} sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}><Stack spacing={2}>
       <Typography variant="h2">{editing ? "Edit feed" : "Create a feed"}</Typography>
