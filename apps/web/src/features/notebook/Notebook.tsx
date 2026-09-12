@@ -82,7 +82,7 @@ export function Notebook({ paperId }: { paperId: string }) {
     if (text) changeObjects([...objects, { type: "text", id: crypto.randomUUID(), ...draftText, w: 0.4, h: 0.08, text, fontSize: 16 }]);
     setDraftText(null);
     setDraftValue("");
-    setMode("select");
+    setMode("text");
   }
   function placeText(event: ReactPointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();

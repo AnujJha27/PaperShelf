@@ -106,6 +106,11 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
   await expect(notebookPage.locator("textarea")).toBeVisible();
   await notebookPage.locator("textarea").fill("typed fixture note");
   await notebookPage.locator("textarea").press("Control+Enter");
+  await notebookPage.click({ position: { x: 220, y: 220 } });
+  await notebookPage.locator("textarea").fill("second fixture note");
+  await notebookPage.locator("textarea").press("Control+Enter");
+  await page.getByRole("button", { name: "Select" }).click();
+  await expect(notebookPage.getByRole("button", { name: "Delete note" })).toHaveCount(2);
   await page.waitForTimeout(900);
   await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/rpc/classify_paper")), page.getByRole("button", { name: "Start reading" }).click()]);
   await Promise.all([page.waitForResponse((response) => response.url().includes("/rest/v1/rpc/classify_paper")), page.getByRole("button", { name: "Mark read" }).click()]);
