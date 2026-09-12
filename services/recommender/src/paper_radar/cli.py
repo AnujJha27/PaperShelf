@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from .discovery.base import FeedConfig
 from .discovery.crossref import CrossrefAdapter
-from .discovery.openalex import OpenAlexAdapter
+from .discovery.openalex import OpenAlexAdapter, openalex_queries
 from .discovery.semantic_scholar import SemanticScholarAdapter
 from .discovery.unpaywall import UnpaywallAdapter
 from .discovery.http import RequestBudget
@@ -54,12 +54,16 @@ def main() -> None:
                 max_today_recommendations=configured.get("max_today_recommendations", 50),
                 exploration_rate=configured.get("exploration_rate", 0.10),
             )
-            discovery_budget = RequestBudget(20)
+            request_budget = max(
+                20,
+                args.batch_size * len(feeds) * 3,
+                sum(len(openalex_queries(feed, args.batch_size)) for feed in feeds) * 3,
+            )
             adapter = EnrichedAdapter(
-                OpenAlexAdapter(os.getenv("OPENALEX_API_KEY"), os.getenv("OPENALEX_MAILTO") or os.getenv("CROSSREF_MAILTO"), discovery_budget),
-                CrossrefAdapter(os.getenv("CROSSREF_MAILTO"), RequestBudget(20)),
-                SemanticScholarAdapter(os.getenv("SEMANTIC_SCHOLAR_API_KEY"), RequestBudget(20)),
-                UnpaywallAdapter(os.environ["UNPAYWALL_EMAIL"], RequestBudget(20)) if os.getenv("UNPAYWALL_EMAIL") else None,
+                OpenAlexAdapter(os.getenv("OPENALEX_API_KEY"), os.getenv("OPENALEX_MAILTO") or os.getenv("CROSSREF_MAILTO"), RequestBudget(request_budget)),
+                CrossrefAdapter(os.getenv("CROSSREF_MAILTO"), RequestBudget(request_budget)),
+                SemanticScholarAdapter(os.getenv("SEMANTIC_SCHOLAR_API_KEY"), RequestBudget(request_budget)),
+                UnpaywallAdapter(os.environ["UNPAYWALL_EMAIL"], RequestBudget(request_budget)) if os.getenv("UNPAYWALL_EMAIL") else None,
             )
             result = run_pipeline(mode, feeds, settings, db, adapter, args.request_id)
             if result.status == "completed" and mode in {"training", "manual", "scheduled"}:
