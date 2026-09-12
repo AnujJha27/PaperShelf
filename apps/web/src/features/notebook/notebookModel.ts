@@ -47,6 +47,21 @@ export function smoothStroke(points: StrokePoint[]): StrokePoint[] {
   });
 }
 
+export function eraseStrokeAt(stroke: StrokeObject, x: number, y: number, radius = 0.012): StrokeObject[] {
+  const hit = stroke.points.map((point) => Math.hypot(point[0] - x, point[1] - y) <= radius);
+  if (!hit.some(Boolean)) return [stroke];
+  const segments: StrokePoint[][] = [];
+  let segment: StrokePoint[] = [];
+  stroke.points.forEach((point, index) => {
+    if (hit[index]) {
+      if (segment.length) segments.push(segment);
+      segment = [];
+    } else segment.push(point);
+  });
+  if (segment.length) segments.push(segment);
+  return segments.map((points, index) => ({ ...stroke, id: index ? `${stroke.id}-${index}` : stroke.id, points }));
+}
+
 export function moveObject<T extends NotebookObject>(object: T, dx: number, dy: number): T {
   const round = (value: number) => Math.round(value * 1_000_000) / 1_000_000;
   if (object.type === "stroke") {

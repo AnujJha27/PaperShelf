@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveSearchText, moveObject, normalizePoint, reorderPages, sanitizeNotebookObjects, simplifyStroke, smoothStroke, type NotebookPage, type StrokeObject, type TextObject } from "./notebookModel";
+import { deriveSearchText, eraseStrokeAt, moveObject, normalizePoint, reorderPages, sanitizeNotebookObjects, simplifyStroke, smoothStroke, type NotebookPage, type StrokeObject, type TextObject } from "./notebookModel";
 
 describe("notebook model", () => {
   it("normalizes pressure-aware points", () => {
@@ -29,5 +29,10 @@ describe("notebook model", () => {
       { type: "text", id: "valid", x: 0, y: 0, w: 1, h: 1, text: "Keep", fontSize: 16 },
       { type: "text", id: "bad", x: 0, y: 0, w: 1, h: 1, text: null, fontSize: 16 },
     ])).toHaveLength(1);
+  });
+
+  it("erases only the local stroke pixels and preserves the remaining segments", () => {
+    const stroke: StrokeObject = { type: "stroke", id: "s", points: [[0, 0, 1], [0.5, 0, 1], [1, 0, 1]], width: 2 };
+    expect(eraseStrokeAt(stroke, 0.5, 0, 0.05).map((item) => item.points)).toEqual([[[0, 0, 1]], [[1, 0, 1]]]);
   });
 });

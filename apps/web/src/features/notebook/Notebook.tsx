@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { Alert, Box, Button, ButtonGroup, Stack, Typography } from "@mui/material";
 import { listNotebookPages, saveNotebookPage, type StoredNotebookPage } from "../../lib/api";
-import { deriveSearchText, moveObject, normalizePoint, reorderPages, sanitizeNotebookObjects, simplifyStroke, smoothStroke, type NotebookObject, type StrokeObject, type TextObject } from "./notebookModel";
+import { deriveSearchText, eraseStrokeAt, moveObject, normalizePoint, reorderPages, sanitizeNotebookObjects, simplifyStroke, smoothStroke, type NotebookObject, type StrokeObject, type TextObject } from "./notebookModel";
 import { deleteNotebookPage, setNotebookPageIndex } from "../../lib/api";
 
 const PAGE_WIDTH = 1000;
@@ -42,9 +42,7 @@ export function Notebook({ paperId }: { paperId: string }) {
   function changeObjects(next: NotebookObject[]) { setHistory((current) => [...current, objects]); setFuture([]); setObjects(next); }
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (mode === "text") {
-      const rect = event.currentTarget.getBoundingClientRect();
-      setDraftText({ x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) });
-      setDraftValue("");
+      placeText(event);
       return;
     }
     if (mode !== "draw") return;
@@ -84,11 +82,24 @@ export function Notebook({ paperId }: { paperId: string }) {
     setDraftValue("");
     setMode("select");
   }
+  function placeText(event: ReactPointerEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    setDraftText({ x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) });
+    setDraftValue("");
+  }
+  function canvasClick(event: ReactPointerEvent<HTMLDivElement>) {
+    if (mode === "text") {
+      if (!draftText) placeText(event);
+      return;
+    }
+    erase(event);
+  }
   function erase(event: ReactPointerEvent<HTMLDivElement>) {
     if (mode !== "erase") return;
     const rect = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - rect.left) / rect.width; const y = (event.clientY - rect.top) / rect.height;
-    changeObjects(objects.filter((object) => object.type === "stroke" ? !object.points.some(([pointX, pointY]) => Math.hypot(pointX - x, pointY - y) < 0.03) : !(x >= object.x && x <= object.x + object.w && y >= object.y && y <= object.y + object.h)));
+    changeObjects(objects.flatMap((object): NotebookObject[] => object.type === "stroke" ? eraseStrokeAt(object, x, y) : (x >= object.x && x <= object.x + object.w && y >= object.y && y <= object.y + object.h) ? [] : [object]));
   }
   function undo() { const previous = history.at(-1); if (!previous) return; setFuture((current) => [...current, objects]); setHistory((current) => current.slice(0, -1)); setObjects(previous); }
   function redo() { const next = future.at(-1); if (!next) return; setHistory((current) => [...current, objects]); setFuture((current) => current.slice(0, -1)); setObjects(next); }
@@ -143,10 +154,11 @@ export function Notebook({ paperId }: { paperId: string }) {
 
   return <Box component="section"><Stack direction="row" sx={{ mb: 1.5, justifyContent: "space-between", alignItems: "center" }}><Typography component="h2" variant="h2">Notebook</Typography><Typography variant="caption" color="text.secondary">Page {pageIndex + 1} of {Math.max(1, pages.length)}</Typography></Stack>
     <Stack direction="row" spacing={1} useFlexGap sx={{ mb: 1.5, flexWrap: "wrap" }}><ButtonGroup size="small"><Button variant={mode === "select" ? "contained" : "outlined"} onClick={() => setMode("select")}>Select</Button><Button variant={mode === "draw" ? "contained" : "outlined"} onClick={() => setMode("draw")}>Pen</Button><Button variant={mode === "text" ? "contained" : "outlined"} onClick={() => setMode("text")}>Text</Button><Button variant={mode === "erase" ? "contained" : "outlined"} onClick={() => setMode("erase")}>Eraser</Button></ButtonGroup><ButtonGroup size="small"><Button onClick={undo} disabled={!history.length}>Undo</Button><Button onClick={redo} disabled={!future.length}>Redo</Button><Button onClick={() => { const next = { id: crypto.randomUUID(), page_index: pages.length, objects: [], search_text: "", version: 0 }; setPages([...pages, next]); selectPage(next); }}>Add page</Button></ButtonGroup><Button size="small" onClick={() => void movePage(-1)} disabled={!pageIndex}>Move up</Button><Button size="small" onClick={() => void movePage(1)} disabled={pageIndex >= pages.length - 1}>Move down</Button><Button size="small" color="error" onClick={() => void removePage()} disabled={pages.length < 2}>Delete</Button></Stack>
+    {mode === "text" && <Typography variant="caption" color="primary.main" sx={{ display: "block", mb: 1 }}>Click anywhere on the page to type a note.</Typography>}
     {message && <Alert severity={conflict ? "warning" : "error"} sx={{ mb: 1.5 }}>{message}{conflict && <Stack direction="row" spacing={1} sx={{ mt: 1 }}><Button size="small" onClick={reloadLatest}>Reload latest</Button><Button size="small" variant="outlined" onClick={keepAsNewPage}>Keep my copy as new page</Button></Stack>}</Alert>}
     <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}><Stack direction="column" spacing={0.75} sx={{ overflowY: "auto", maxWidth: 92, maxHeight: 620, flexShrink: 0 }}>{pages.map((page) => <Button size="small" key={page.id} variant={page.page_index === pageIndex ? "contained" : "outlined"} onClick={() => selectPage(page)} sx={{ flexShrink: 0 }}>Page {page.page_index + 1}</Button>)}</Stack>
-      <Box className="notebook-canvas" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onClick={erase} sx={{ position: "relative", flex: 1, minWidth: 0, width: "100%", aspectRatio: `${PAGE_WIDTH}/${PAGE_HEIGHT}`, border: 1, borderColor: "divider", touchAction: mode === "draw" || mode === "text" ? "none" : "pan-y", overflow: "hidden", "--notebook-bg": "#fff", "--notebook-dot": "#bfd0d8" }}>
-        <svg viewBox={`0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}`} width="100%" height="100%">{objects.filter((object): object is StrokeObject => object.type === "stroke").map((stroke) => <polyline key={stroke.id} onPointerDown={(event) => startObjectDrag(event, stroke.id)} points={stroke.points.map(([x, y]) => `${x * PAGE_WIDTH},${y * PAGE_HEIGHT}`).join(" ")} fill="none" stroke="black" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}</svg>
+      <Box className="notebook-canvas" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onClick={canvasClick} sx={{ position: "relative", flex: 1, minWidth: 0, width: "100%", aspectRatio: `${PAGE_WIDTH}/${PAGE_HEIGHT}`, border: 1, borderColor: "divider", touchAction: mode === "draw" || mode === "text" ? "none" : "pan-y", overflow: "hidden", cursor: mode === "text" ? "text" : "default", "--notebook-bg": "#fff", "--notebook-dot": "#bfd0d8" }}>
+        <svg viewBox={`0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}`} width="100%" height="100%">{objects.filter((object): object is StrokeObject => object.type === "stroke").map((stroke) => stroke.points.length === 1 ? <circle key={stroke.id} onPointerDown={(event) => startObjectDrag(event, stroke.id)} cx={stroke.points[0][0] * PAGE_WIDTH} cy={stroke.points[0][1] * PAGE_HEIGHT} r={stroke.width / 2} fill="black" /> : <polyline key={stroke.id} onPointerDown={(event) => startObjectDrag(event, stroke.id)} points={stroke.points.map(([x, y]) => `${x * PAGE_WIDTH},${y * PAGE_HEIGHT}`).join(" ")} fill="none" stroke="black" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}</svg>
         {objects.filter((object): object is TextObject => object.type === "text").map((text) => <div key={text.id} onPointerDown={(event) => startObjectDrag(event, text.id)} onPointerUp={(event) => resizeText(event, text.id)} style={{ position: "absolute", left: `${text.x * 100}%`, top: `${text.y * 100}%`, width: `${text.w * 100}%`, minHeight: `${text.h * 100}%`, fontSize: text.fontSize, resize: mode === "select" ? "both" : "none", overflow: "auto", cursor: mode === "select" ? "move" : "default" }}>{text.text}</div>)}
         {draftText && <textarea autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} onBlur={commitText} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commitText(); } if (event.key === "Escape") { setDraftText(null); setDraftValue(""); setMode("select"); } }} onPointerDown={(event) => event.stopPropagation()} placeholder="Type a note…" style={{ position: "absolute", left: `${draftText.x * 100}%`, top: `${draftText.y * 100}%`, width: "40%", minHeight: "8%", zIndex: 2, padding: 8, border: "1px solid #75bda7", borderRadius: 6, background: "white", color: "#17211d", font: "16px sans-serif", resize: "both" }} />}
       </Box>

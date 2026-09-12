@@ -68,7 +68,7 @@ export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourc
     </Stack>
     {failed && <Alert severity="warning" role="alert">No public PDF source could be loaded. Try an external copy: <Stack component="span" direction="row" spacing={1} sx={{ ml: 1, display: "inline-flex" }}>{sources.map((source) => <a key={source.id} href={source.landing_url ?? source.pdf_url} target="_blank" rel="noreferrer">{source.host ?? source.id}</a>)}</Stack></Alert>}
     {pageError && <Alert severity="error" role="alert" onClose={() => setPageError(false)}>This page could not be rendered. Try another page or source.</Alert>}
-    <Paper ref={scrollContainer} onScroll={(event) => current && onProgress?.({ sourceId: current.sourceId, pageNumber, zoom: scale, scrollOffset: event.currentTarget.scrollTop })} onMouseUp={handleSelection} sx={{ overflow: "auto", p: { xs: 1, sm: 2 }, bgcolor: "background.paper" }}>
+    <Paper ref={scrollContainer} onScroll={(event) => current && onProgress?.({ sourceId: current.sourceId, pageNumber, zoom: scale, scrollOffset: event.currentTarget.scrollTop })} onMouseUp={handleSelection} sx={{ height: { xs: "60vh", md: "calc(100vh - 250px)" }, minHeight: { md: 480 }, overflow: "auto", p: { xs: 1, sm: 2 }, bgcolor: "background.paper" }}>
       <div style={{ position: "relative", width: "max-content" }}>
         <PdfDocument url={current.url} gatewayUrl={gatewayUrl} pageNumber={pageNumber} scale={scale} onError={handlePdfError} onNumPages={setNumPages} onPageSize={onPageSize} onTextLayer={setTextLayer} />
         <HighlightLayer rects={[...highlights.filter((highlight) => highlight.source_id === current.sourceId && highlight.page_number === pageNumber).flatMap((highlight) => highlight.rects), ...rects]} />
