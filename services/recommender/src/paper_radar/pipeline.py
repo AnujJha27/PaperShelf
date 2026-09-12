@@ -76,6 +76,8 @@ def _schedule_allowed(settings: PipelineSettings) -> bool:
 
 
 def _candidate_in_scope(candidate: CandidateWork, feed: FeedConfig) -> bool:
+    # Unknown publication years remain eligible: providers sometimes omit dates, while
+    # OpenAlex already applies the server-side cutoff for dated retrieval results.
     if candidate.publication_year is not None and candidate.publication_year < feed.min_publication_year:
         return False
     text = " ".join([candidate.title, candidate.abstract or "", json_text(candidate.metadata)]).casefold()
