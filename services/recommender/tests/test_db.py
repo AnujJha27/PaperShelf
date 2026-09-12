@@ -159,4 +159,4 @@ class RunLifecycleTests(unittest.TestCase):
 
         self.assertEqual(sum(table == "recommender_models" for _, table, _, _ in calls), 2)
         self.assertEqual(sum(table == "zotero_items" for _, table, _, _ in calls), 1)
-        self.assertEqual(sum(table == "feed_embeddings" for _, table, _, _ in calls), 2)
+        self.assertEqual(sum(table == "feed_embeddings" for _, table, _, _ in calls), 3)
