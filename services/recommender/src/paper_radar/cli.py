@@ -110,7 +110,10 @@ class EnrichedAdapter:
         self.unpaywall = unpaywall
 
     def search(self, feed: FeedConfig, limit: int):
-        candidates = self.discovery.search(feed, limit)
+        try:
+            candidates = self.discovery.search(feed, limit)
+        except (OSError, RuntimeError):
+            return []
         for candidate in candidates:
             try:
                 candidate = self.crossref.repair(candidate)
