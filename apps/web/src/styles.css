@@ -3,6 +3,9 @@ body { margin: 0; }
 .reader-split { display: grid; gap: 1rem; align-items: start; }
 .reader-divider { cursor: col-resize; touch-action: none; }
 .notebook-canvas { background-color: var(--notebook-bg, #fff); background-image: radial-gradient(circle, var(--notebook-dot, #bfd0d8) 1px, transparent 1px); background-size: 16px 16px; }
+.textLayer { position: absolute; inset: 0; overflow: hidden; line-height: 1; color: transparent; z-index: 1; }
+.textLayer span, .textLayer br { position: absolute; color: transparent; white-space: pre; cursor: text; transform-origin: 0 0; }
+.textLayer::selection, .textLayer span::selection { background: rgba(54, 122, 88, 0.25); color: transparent; }
 .abstract-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }

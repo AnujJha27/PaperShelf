@@ -4,6 +4,19 @@ export type TextObject = { type: "text"; id: string; x: number; y: number; w: nu
 export type NotebookObject = StrokeObject | TextObject;
 export type NotebookPage = { id: string; pageIndex: number; objects: NotebookObject[] };
 
+export function sanitizeNotebookObjects(value: unknown): NotebookObject[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((object): object is NotebookObject => {
+    if (!object || typeof object !== "object" || typeof (object as { id?: unknown }).id !== "string") return false;
+    if ((object as { type?: unknown }).type === "text") {
+      const text = object as Partial<TextObject>;
+      return typeof text.text === "string" && [text.x, text.y, text.w, text.h, text.fontSize].every((item) => typeof item === "number" && Number.isFinite(item));
+    }
+    const stroke = object as Partial<StrokeObject>;
+    return stroke.type === "stroke" && typeof stroke.width === "number" && Number.isFinite(stroke.width) && Array.isArray(stroke.points) && stroke.points.every((point) => Array.isArray(point) && point.length === 3 && point.every((item) => typeof item === "number" && Number.isFinite(item)));
+  });
+}
+
 export function normalizePoint(x: number, y: number, width: number, height: number, pressure = 0.5): StrokePoint {
   if (width <= 0 || height <= 0) throw new Error("page dimensions must be positive");
   return [Math.max(0, Math.min(1, x / width)), Math.max(0, Math.min(1, y / height)), Math.max(0, Math.min(1, pressure))];

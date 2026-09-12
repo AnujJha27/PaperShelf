@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveSearchText, moveObject, normalizePoint, reorderPages, simplifyStroke, smoothStroke, type NotebookPage, type StrokeObject, type TextObject } from "./notebookModel";
+import { deriveSearchText, moveObject, normalizePoint, reorderPages, sanitizeNotebookObjects, simplifyStroke, smoothStroke, type NotebookPage, type StrokeObject, type TextObject } from "./notebookModel";
 
 describe("notebook model", () => {
   it("normalizes pressure-aware points", () => {
@@ -22,5 +22,12 @@ describe("notebook model", () => {
     expect(moveObject(stroke, 0.2, 0.3).points).toEqual([[0.2, 0.3, 1]]);
     expect(reorderPages([page, { ...page, id: "q", pageIndex: 1 }], 1, 0).map((item) => item.id)).toEqual(["q", "p"]);
     expect(deriveSearchText(page.objects)).toBe("hello");
+  });
+
+  it("drops malformed persisted notebook objects before rendering", () => {
+    expect(sanitizeNotebookObjects([
+      { type: "text", id: "valid", x: 0, y: 0, w: 1, h: 1, text: "Keep", fontSize: 16 },
+      { type: "text", id: "bad", x: 0, y: 0, w: 1, h: 1, text: null, fontSize: 16 },
+    ])).toHaveLength(1);
   });
 });
