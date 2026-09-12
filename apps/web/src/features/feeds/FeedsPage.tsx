@@ -8,7 +8,7 @@ import { PageContainer } from "../../components/layout/PageContainer";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { starterFeeds, uncreatedStarterFeeds } from "./starterFeeds";
+import { uncreatedStarterFeeds } from "./starterFeeds";
 
 const empty: FeedInput = { name: "", description: "", include_keywords: "", exclude_keywords: "", priority_keywords: "", min_publication_year: 2018 };
 

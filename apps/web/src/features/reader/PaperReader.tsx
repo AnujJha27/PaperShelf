@@ -55,7 +55,7 @@ export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourc
     }
     setPageError(true);
   }, [numPages, urls.length]);
-  const onPageSize = useCallback((_size: { width: number; height: number }) => undefined, []);
+  const onPageSize = useCallback(() => undefined, []);
 
   useEffect(() => {
     if (current) onProgress?.({ sourceId: current.sourceId, pageNumber, zoom: scale, scrollOffset: scrollContainer.current?.scrollTop ?? 0 });

@@ -46,7 +46,7 @@ export function PdfDocument({ url, gatewayUrl, pageNumber, scale, onError, onNum
       }
     }).catch(() => { if (!cancelled) onError("document"); });
     return () => { cancelled = true; loading?.destroy(); };
-  }, [url, gatewayUrl, pageNumber, scale, onError, onPageSize, onTextLayer]);
+  }, [url, gatewayUrl, pageNumber, scale, onError, onNumPages, onPageSize, onTextLayer]);
 
   return <div style={{ position: "relative", width: "max-content" }}>
     <canvas ref={canvas} />

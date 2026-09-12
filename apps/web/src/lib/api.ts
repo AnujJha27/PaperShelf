@@ -1,5 +1,4 @@
 import type { AppSettings, Feed, FeedInput, Paper, Recommendation, PaperState, PaperAction, QueuePriority } from "@paper-radar/shared";
-import { transitionPaperState } from "@paper-radar/shared";
 import { supabase } from "./supabase";
 import { normalizeKeywords, validateFeedInput } from "../features/feeds/validation";
 import { summarizeFeedModel, type FeedModelStatus } from "../features/feeds/modelStatus";
