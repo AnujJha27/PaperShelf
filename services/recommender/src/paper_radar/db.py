@@ -58,8 +58,8 @@ class SupabaseDB:
         return cls(url, key, str(feeds[0]["user_id"]))
 
     def active_feeds(self) -> list[FeedConfig]:
-        rows = self.request("GET", "feeds", {"is_active": "eq.true", "user_id": f"eq.{self.user_id}", "select": "id,user_id,name,description,include_keywords,exclude_keywords,priority_keywords,min_semantic_similarity"})
-        return [FeedConfig(id=row["id"], user_id=row["user_id"], name=row.get("name"), description=row["description"], include_keywords=row.get("include_keywords") or [], exclude_keywords=row.get("exclude_keywords") or [], min_semantic_similarity=row.get("min_semantic_similarity", 0.35), priority_keywords=row.get("priority_keywords") or []) for row in rows]
+        rows = self.request("GET", "feeds", {"is_active": "eq.true", "user_id": f"eq.{self.user_id}", "select": "id,user_id,name,description,include_keywords,exclude_keywords,priority_keywords,min_semantic_similarity,min_publication_year"})
+        return [FeedConfig(id=row["id"], user_id=row["user_id"], name=row.get("name"), description=row["description"], include_keywords=row.get("include_keywords") or [], exclude_keywords=row.get("exclude_keywords") or [], min_semantic_similarity=row.get("min_semantic_similarity", 0.35), priority_keywords=row.get("priority_keywords") or [], min_publication_year=row.get("min_publication_year", 2018)) for row in rows]
 
     def settings(self) -> dict:
         rows = self.request("GET", "app_settings", {"user_id": f"eq.{self.user_id}", "select": "recommender_mode,schedule_enabled,exploration_rate,training_batch_size,max_feed_recommendations,max_today_recommendations"})

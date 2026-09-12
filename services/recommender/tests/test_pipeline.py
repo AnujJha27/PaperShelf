@@ -53,6 +53,14 @@ class PipelineTests(unittest.TestCase):
         result = run_pipeline("training", [FeedConfig("topic", min_semantic_similarity=0.35)], PipelineSettings(), db, Adapter())
         self.assertEqual(result.stats["recommendations"], 1)
 
+    def test_old_candidates_are_outside_a_feed_cutoff(self):
+        class Adapter:
+            def search(self, feed, limit):
+                return [CandidateWork("Known classic", publication_year=2017, metadata={"semantic_retrieval": True})]
+
+        result = run_pipeline("training", [FeedConfig("topic", min_publication_year=2020)], PipelineSettings(), InMemoryDB(), Adapter())
+        self.assertEqual(result.stats["recommendations"], 0)
+
     def test_manual_mode_uses_persisted_model_features_for_ranked_slots(self):
         class RankedDB(InMemoryDB):
             def candidate_features(self, candidate, feed):

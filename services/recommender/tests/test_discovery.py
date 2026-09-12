@@ -4,7 +4,7 @@ from unittest.mock import patch
 from paper_radar.discovery.base import CandidateWork, FeedConfig
 from paper_radar.discovery.crossref import CrossrefAdapter, candidate_from_crossref
 from paper_radar.discovery.http import RequestBudget
-from paper_radar.discovery.openalex import candidate_from_openalex, openalex_queries
+from paper_radar.discovery.openalex import OpenAlexAdapter, candidate_from_openalex, openalex_queries
 from paper_radar.discovery.semantic_scholar import SemanticScholarAdapter
 
 
@@ -24,6 +24,11 @@ class DiscoveryTests(unittest.TestCase):
 
     def test_openalex_queries_include_priority_keywords_without_duplicates(self):
         self.assertEqual(openalex_queries(FeedConfig(description="topic", include_keywords=["Lean"], priority_keywords=["Lean", "proof certificates"]), 10), ["topic", "Lean", "proof certificates"])
+
+    def test_openalex_search_applies_feed_publication_cutoff(self):
+        with patch("paper_radar.discovery.openalex.get_json", return_value={}) as get_json:
+            OpenAlexAdapter(request_budget=RequestBudget(1)).search(FeedConfig("topic", min_publication_year=2020), 5)
+        self.assertEqual(get_json.call_args.args[1]["filter"], "from_publication_date:2020-01-01")
 
     def test_crossref_mapping_repairs_doi(self):
         candidate = candidate_from_crossref({"DOI": "10.1000/ABC", "title": ["A paper"], "author": [{"given": "A", "family": "Researcher"}]})

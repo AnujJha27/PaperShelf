@@ -8,6 +8,7 @@ export const starterFeeds: FeedInput[] = [
     exclude_keywords: "tutorial, beginner, education",
     priority_keywords: "Lean, Lean 4, mathlib, theorem proving, proof assistant",
     min_semantic_similarity: 0.35,
+    min_publication_year: 2018,
   },
   {
     name: "Automated Reasoning & Proof Search",
@@ -16,6 +17,7 @@ export const starterFeeds: FeedInput[] = [
     exclude_keywords: "opinion, survey-only",
     priority_keywords: "proof search, premise selection, proof synthesis, automated reasoning",
     min_semantic_similarity: 0.4,
+    min_publication_year: 2018,
   },
   {
     name: "Formal Methods & Verification",
@@ -24,6 +26,7 @@ export const starterFeeds: FeedInput[] = [
     exclude_keywords: "tutorial, introductory, education",
     priority_keywords: "formal verification, program verification, model checking, software correctness",
     min_semantic_similarity: 0.4,
+    min_publication_year: 2018,
   },
   {
     name: "AI for Mathematics & Proofs",
@@ -32,6 +35,7 @@ export const starterFeeds: FeedInput[] = [
     exclude_keywords: "computer vision, image classification, speech recognition, robotics",
     priority_keywords: "neural theorem proving, proof generation, Lean, mathematical reasoning",
     min_semantic_similarity: 0.45,
+    min_publication_year: 2020,
   },
   {
     name: "Type Theory & Programming Languages",
@@ -40,6 +44,7 @@ export const starterFeeds: FeedInput[] = [
     exclude_keywords: "web development, database systems, networking",
     priority_keywords: "dependent types, type systems, lambda calculus, semantics",
     min_semantic_similarity: 0.4,
+    min_publication_year: 2018,
   },
   {
     name: "Frontier ML & LLMs",
@@ -48,6 +53,7 @@ export const starterFeeds: FeedInput[] = [
     exclude_keywords: "medical diagnosis, finance, marketing, education",
     priority_keywords: "foundation models, scaling laws, reasoning models, AI agents",
     min_semantic_similarity: 0.45,
+    min_publication_year: 2020,
   },
   {
     name: "Multimodal & Agentic ML",
@@ -56,6 +62,7 @@ export const starterFeeds: FeedInput[] = [
     exclude_keywords: "medical imaging, autonomous driving, surveillance",
     priority_keywords: "multimodal learning, tool use, agentic AI, world models",
     min_semantic_similarity: 0.45,
+    min_publication_year: 2020,
   },
   {
     name: "Generative Models & Representation Learning",
@@ -64,6 +71,34 @@ export const starterFeeds: FeedInput[] = [
     exclude_keywords: "image editing, marketing, advertising",
     priority_keywords: "diffusion models, flow matching, representation learning, self-supervised learning",
     min_semantic_similarity: 0.45,
+    min_publication_year: 2018,
+  },
+  {
+    name: "Mathematics, Probability & Statistics",
+    description: "Combinatorics, number theory, analysis, graph theory, probability, randomness, statistical learning theory, and applied statistics",
+    include_keywords: "combinatorics, extremal combinatorics, probabilistic combinatorics, additive combinatorics, graph theory, random graphs, number theory, analytic number theory, algebraic number theory, probability theory, random processes, stochastic processes, concentration inequalities, real analysis, harmonic analysis, functional analysis, statistical learning theory, learning theory, high-dimensional statistics, mathematical statistics, statistical inference, Bayesian statistics, causal inference, randomized algorithms",
+    exclude_keywords: "tutorial, textbook, education, survey-only",
+    priority_keywords: "combinatorics, number theory, graph theory, random graphs, probability theory, statistical learning theory, high-dimensional statistics, harmonic analysis",
+    min_semantic_similarity: 0.4,
+    min_publication_year: 2010,
+  },
+  {
+    name: "Multi-Agent & Federated Learning",
+    description: "Multi-agent systems, decentralized learning, federated learning, coordination, and privacy-preserving machine learning",
+    include_keywords: "multi-agent reinforcement learning, multi-agent systems, decentralized learning, federated learning, federated optimization, distributed machine learning, collaborative learning, agent coordination, emergent communication, cooperative agents, competitive agents, swarm intelligence, privacy-preserving machine learning, differential privacy, split learning",
+    exclude_keywords: "tutorial, textbook, education, survey-only",
+    priority_keywords: "multi-agent reinforcement learning, federated learning, agent coordination, decentralized learning, federated optimization, emergent communication",
+    min_semantic_similarity: 0.42,
+    min_publication_year: 2018,
+  },
+  {
+    name: "Machine Learning for Finance",
+    description: "Machine learning research for financial markets, forecasting, risk, portfolio construction, and financial decision-making",
+    include_keywords: "machine learning for finance, financial machine learning, quantitative finance, asset pricing, financial forecasting, return prediction, volatility forecasting, portfolio optimization, algorithmic trading, market microstructure, limit order books, credit risk, market risk, fraud detection, financial time series, fintech",
+    exclude_keywords: "tutorial, textbook, education, survey-only, investment advice, cryptocurrency promotion",
+    priority_keywords: "financial machine learning, financial forecasting, volatility forecasting, portfolio optimization, market microstructure, credit risk",
+    min_semantic_similarity: 0.42,
+    min_publication_year: 2018,
   },
 ];
 

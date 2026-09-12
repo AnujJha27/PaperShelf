@@ -59,6 +59,7 @@ export async function saveFeed(input: FeedInput, id?: string): Promise<Feed> {
     exclude_keywords: normalizeKeywords(input.exclude_keywords),
     priority_keywords: normalizeKeywords(input.priority_keywords),
     min_semantic_similarity: input.min_semantic_similarity ?? 0.35,
+    min_publication_year: input.min_publication_year ?? 2018,
   };
   const query = id
     ? client().from("feeds").update(values).eq("id", id)

@@ -7,6 +7,7 @@ export type Feed = {
   exclude_keywords: string[];
   priority_keywords: string[];
   min_semantic_similarity: number;
+  min_publication_year: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -19,6 +20,7 @@ export type FeedInput = {
   exclude_keywords?: string;
   priority_keywords?: string;
   min_semantic_similarity?: number;
+  min_publication_year?: number;
 };
 
 export type AppSettings = {

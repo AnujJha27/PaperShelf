@@ -57,6 +57,7 @@ class OpenAlexAdapter:
         results: dict[str, CandidateWork] = {}
         for query in openalex_queries(feed, limit):
             params = {"search": query, "per-page": str(limit)}
+            params["filter"] = f"from_publication_date:{feed.min_publication_year}-01-01"
             if self.api_key:
                 params["api_key"] = self.api_key
             if self.mailto:
