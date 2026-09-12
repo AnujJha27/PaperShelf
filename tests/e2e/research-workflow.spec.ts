@@ -102,7 +102,8 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
   await notebookPage.dispatchEvent("pointerdown", { clientX: 40, clientY: 40, pointerId: 1, pressure: 0.5 });
   await notebookPage.dispatchEvent("pointerup", { clientX: 80, clientY: 80, pointerId: 1, pressure: 0.5 });
   await page.getByRole("button", { name: "Text" }).click();
-  await notebookPage.dispatchEvent("pointerdown", { clientX: 120, clientY: 120, pointerId: 2, pressure: 0.5 });
+  await notebookPage.click({ position: { x: 120, y: 120 } });
+  await expect(notebookPage.locator("textarea")).toBeVisible();
   await notebookPage.locator("textarea").fill("typed fixture note");
   await notebookPage.locator("textarea").press("Control+Enter");
   await page.waitForTimeout(900);
