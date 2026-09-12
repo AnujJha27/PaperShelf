@@ -78,4 +78,4 @@ class OpenAlexAdapter:
                     candidate.metadata.setdefault("retrieval_queries", []).append(query)
                     candidate.metadata["semantic_retrieval"] = candidate.metadata.get("semantic_retrieval", False) or query == feed.description
                     results[candidate.identifiers["openalex"]] = candidate
-        return list(results.values())[:limit]
+        return list(results.values())[:max(limit, limit * 2)]

@@ -183,7 +183,7 @@ def run_pipeline(
             scoped = [(candidate, features[index], prepared[index][1]) for index, candidate in enumerate(candidates) if _features_in_scope(features[index], feed)]
             stats["candidates_in_scope"] += len(scoped)
             if mode == "training":
-                selected = [(candidate, None, paper_id) for candidate, _, paper_id in scoped]
+                selected = [(candidate, None, paper_id) for candidate, _, paper_id in scoped[:feed_limit]]
             else:
                 scored = score_candidates([feature for _, feature, _ in scoped])
                 chosen = select_with_exploration(scored, feed_limit, settings.exploration_rate)

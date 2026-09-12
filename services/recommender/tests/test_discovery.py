@@ -36,6 +36,12 @@ class DiscoveryTests(unittest.TestCase):
             OpenAlexAdapter(request_budget=RequestBudget(1)).search(FeedConfig("topic", min_publication_year=2020), 5)
         self.assertEqual(get_json.call_args.args[1]["filter"], "from_publication_date:2020-01-01")
 
+    def test_openalex_search_returns_a_bounded_candidate_pool(self):
+        works = [{"id": f"https://openalex.org/W{index}", "title": f"Paper {index}"} for index in range(10)]
+        with patch("paper_radar.discovery.openalex.get_json", return_value={"results": works}):
+            candidates = OpenAlexAdapter(request_budget=RequestBudget(1)).search(FeedConfig("topic"), 3)
+        self.assertEqual(len(candidates), 6)
+
     def test_crossref_mapping_repairs_doi(self):
         candidate = candidate_from_crossref({"DOI": "10.1000/ABC", "title": ["A paper"], "author": [{"given": "A", "family": "Researcher"}]})
         self.assertEqual(candidate.doi, "10.1000/abc")
