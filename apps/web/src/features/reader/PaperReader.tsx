@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, FormControl, InputLabel, MenuItem, Paper, Select, Stack, Typography } from "@mui/material";
 import type { PaperAction } from "@paper-radar/shared";
-import { clampPage, readerSources, type PdfErrorKind, type ReaderSource, type Rect } from "./readerModel";
+import { readerSources, type PdfErrorKind, type ReaderSource, type Rect } from "./readerModel";
 import { PdfDocument } from "./PdfDocument";
 import { HighlightLayer, selectionRects } from "./HighlightLayer";
 
