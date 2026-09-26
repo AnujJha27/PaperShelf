@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { normalizeKeywords, validateFeedInput } from "../features/feeds/validation";
 import { summarizeFeedModel, type FeedModelStatus } from "../features/feeds/modelStatus";
 import { summarizeTrainingLabels, trainingReady } from "../features/inbox/trainingReadiness";
+import { normalizePaperUrl } from "../features/library/manualPaper";
 
 function client() {
   if (!supabase) throw new Error("Supabase is not configured");
@@ -27,6 +28,12 @@ export async function listFeeds(): Promise<Feed[]> {
   const { data, error } = await client().from("feeds").select("*").order("name");
   if (error) throw error;
   return data as Feed[];
+}
+
+export async function addPaperFromUrl(rawUrl: string, title = ""): Promise<Paper> {
+  const { data, error } = await client().rpc("add_paper_from_url", { p_url: normalizePaperUrl(rawUrl), p_title: title.trim() || null });
+  if (error) throw error;
+  return data as Paper;
 }
 
 export async function getFeedModelStatuses(feedIds: string[]): Promise<Record<string, FeedModelStatus>> {
