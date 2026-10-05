@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampPage, normalizeRects, pdfDocumentRequest, readerSources } from "./readerModel";
+import { fitWidthScale, fitPageScale, outputScaleForDpr, clampPage, normalizeRects, pdfDocumentRequest, readerSources } from "./readerModel";
 
 describe("reader model", () => {
   it("stores highlight rectangles in page-normalized coordinates", () => {
@@ -24,5 +24,21 @@ describe("reader model", () => {
     expect(clampPage(0, 18)).toBe(1);
     expect(clampPage(4, 18)).toBe(4);
     expect(clampPage(99, 18)).toBe(18);
+  });
+});
+
+describe("logical viewport and backing resolution", () => {
+  it("caps DPR independently of logical zoom and canvas limits", () => {
+    expect(outputScaleForDpr(1, 900, 1200)).toBe(1);
+    expect(outputScaleForDpr(2, 900, 1200)).toBe(2);
+    expect(outputScaleForDpr(4, 900, 1200)).toBe(2.5);
+    expect(outputScaleForDpr(2, 10000, 10000)).toBeLessThan(1);
+  });
+  it("fits the available pane width", () => {
+    expect(fitWidthScale(600, 900)).toBe(1.5);
+  });
+  it("fits both dimensions without changing aspect ratio", () => {
+    expect(fitPageScale(600, 800, 900, 400)).toBe(0.5);
+    expect(fitPageScale(600, 800, 300, 1200)).toBe(0.5);
   });
 });

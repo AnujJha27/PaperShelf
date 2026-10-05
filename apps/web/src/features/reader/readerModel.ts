@@ -26,3 +26,15 @@ export function pdfDocumentRequest(url: string, token: string | null, gatewayUrl
   const isProxy = target.origin === gateway.origin && target.pathname.startsWith("/api/pdf/");
   return token && isProxy ? { url, httpHeaders: { Authorization: `Bearer ${token}` } } : url;
 }
+
+export function fitWidthScale(pageWidth: number, containerWidth: number): number {
+  return Math.max(1, containerWidth) / pageWidth;
+}
+
+export function fitPageScale(pageWidth: number, pageHeight: number, containerWidth: number, containerHeight: number): number {
+  return Math.min(fitWidthScale(pageWidth, containerWidth), Math.max(1, containerHeight) / pageHeight);
+}
+
+export function outputScaleForDpr(dpr: number, width: number, height: number): number {
+  return Math.min(dpr || 1, 2.5, 8192 / width, 8192 / height, Math.sqrt(16_000_000 / (width * height)));
+}

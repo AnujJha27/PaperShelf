@@ -5,6 +5,9 @@ body { margin: 0; }
 .notebook-canvas { background-color: var(--notebook-bg, #fff); background-image: radial-gradient(circle, var(--notebook-dot, #bfd0d8) 1px, transparent 1px); background-size: 16px 16px; }
 .textLayer { position: absolute; inset: 0; overflow: hidden; line-height: 1; color: transparent; z-index: 1; }
 .textLayer span, .textLayer br { position: absolute; color: transparent; white-space: pre; cursor: text; transform-origin: 0 0; }
+.textLayer { --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size)); }
+.textLayer > :not(.markedContent), .textLayer .markedContent span:not(.markedContent) { --font-height: 0; --scale-x: 1; --rotate: 0deg; font-size: calc(var(--text-scale-factor) * var(--font-height)); transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
+.textLayer .markedContent { display: contents; }
 .textLayer::selection, .textLayer span::selection { background: rgba(54, 122, 88, 0.25); color: transparent; }
 .abstract-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

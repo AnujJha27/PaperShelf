@@ -7,14 +7,17 @@ const papers = [
   { id: "paper-2", title: "Rejected fixture", abstract: "Another fixture abstract.", authors: [{ name: "B Researcher" }], venue: "Journal", publication_year: 2026, canonical_url: "https://paper.test/2" },
 ];
 
-function fixturePdf() {
+function fixturePdf(numPages = 1) {
+  const fontId = 3 + numPages * 2;
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-    "<< /Length 56 >>\nstream\nBT /F1 18 Tf 72 720 Td (Fixture paper text) Tj ET\nendstream",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Type /Pages /Kids [${Array.from({ length: numPages }, (_, i) => `${3 + i * 2} 0 R`).join(" ")}] /Count ${numPages} >>`,
   ];
+  for (let i = 0; i < numPages; i++) {
+    const content = "BT /F1 18 Tf 72 720 Td (Fixture paper text) Tj ET";
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${4 + i * 2} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  }
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
   let pdf = "%PDF-1.4\n";
   const offsets = [0];
   objects.forEach((object, index) => { offsets.push(pdf.length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
@@ -123,4 +126,107 @@ test("triages, reads, annotates, completes, rejects, and recovers papers", async
   await page.getByRole("button", { name: "Undo rejection" }).click();
   expect(notebook).toBe(true);
   expect(highlight).toBe(true);
+});
+
+test.describe("PDF reader quality", () => {
+  test.use({ deviceScaleFactor: 2 });
+  test("keeps logical geometry, clamps restored pages, fits resized panes, and preserves highlights", async ({ page }) => {
+    let state: Record<string, unknown> = { source_id: "source-1", page_number: 99, zoom: 1, scroll_offset: 120 };
+    let highlights: Record<string, unknown>[] = [];
+    let proxyRequests = 0;
+    await page.addInitScript((session) => localStorage.setItem("sb-supabase-auth-token", JSON.stringify({ access_token: "fixture-token", refresh_token: "fixture-token", token_type: "bearer", expires_at: Math.floor(Date.now() / 1000) + 3600, user: session })), user);
+    await page.route("https://supabase.test/**", async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      if (path === "/auth/v1/user") return route.fulfill({ json: user });
+      if (path.endsWith("/papers")) return route.fulfill({ json: [papers[0]] });
+      if (path.endsWith("/paper_sources")) return route.fulfill({ json: [{ id: "source-1", pdf_url: "https://oa.test/paper.pdf" }] });
+      if (path.endsWith("/reader_state")) {
+        if (request.method() === "POST") { state = JSON.parse(request.postData()!); return route.fulfill({ status: 204 }); }
+        return route.fulfill({ json: state });
+      }
+      if (path.endsWith("/pdf_highlights")) {
+        if (request.method() === "POST") {
+          highlights = [...highlights, { id: "highlight-1", ...JSON.parse(request.postData()!) }];
+          return route.fulfill({ json: highlights.at(-1) });
+        }
+        return route.fulfill({ json: highlights });
+      }
+      return route.fulfill({ json: [] });
+    });
+    await page.route("https://oa.test/paper.pdf", (route) => route.fulfill({ contentType: "application/pdf", body: fixturePdf(3) }));
+    await page.route("https://gateway.test/api/pdf/**", (route) => { proxyRequests++; return route.fulfill({ contentType: "application/pdf", body: fixturePdf(3) }); });
+    await page.goto("/reading/paper-1");
+    const canvas = page.locator("section canvas");
+    const text = page.locator(".textLayer span").first();
+    const ready = async () => { await expect(page.getByRole("status", { name: "Loading PDF page" })).toHaveCount(0); await expect(text).toBeVisible(); };
+    await ready();
+    await expect(page.getByText("Page 3 / 3", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Previous", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
+    expect(proxyRequests).toBe(0);
+    await expect.poll(() => canvas.evaluate((element) => element.closest(".MuiPaper-root")!.scrollTop)).toBe(120);
+    await page.getByRole("button", { name: "Previous", exact: true }).click();
+    await ready();
+    await expect(page.getByText("Page 2 / 3", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Previous", exact: true }).click();
+    await ready();
+    await expect(page.getByRole("button", { name: "Previous", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Next", exact: true })).toBeEnabled();
+    expect(await canvas.evaluate((element) => { const c = element as HTMLCanvasElement; return c.width / c.getBoundingClientRect().width; })).toBeCloseTo(2, 1);
+    await text.selectText();
+    await page.locator(".textLayer").dispatchEvent("mouseup");
+    await expect.poll(() => highlights.length).toBe(1);
+    const rect = (highlights[0].rects as Array<{ x: number; y: number; width: number }>)[0];
+    expect(rect.x).toBeCloseTo(72 / 612, 2);
+    expect(rect.y).toBeGreaterThan(0.06);
+    expect(rect.y).toBeLessThan(0.11);
+    expect(rect.width).toBeGreaterThan(0.1);
+    const zoom = async (label: string) => { await page.getByRole("combobox", { name: "Zoom", exact: true }).click(); await page.getByRole("option", { name: label, exact: true }).click(); await ready(); };
+    await zoom("150%");
+    await expect.poll(() => canvas.evaluate((element) => element.getBoundingClientRect().width)).toBeCloseTo(918, 0);
+    const selectionAtZoom = await text.evaluate((element) => { const r = element.getBoundingClientRect(); const p = element.parentElement!.getBoundingClientRect(); return { x: (r.x - p.x) / p.width, width: r.width / p.width }; });
+    expect(selectionAtZoom.x).toBeCloseTo(rect.x, 2);
+    expect(selectionAtZoom.width).toBeCloseTo(rect.width, 2);
+    const overlay = page.locator('section div[aria-hidden="true"] > span').first();
+    const overlayGeometry = await overlay.evaluate((element) => { const r = element.getBoundingClientRect(); const p = element.parentElement!.getBoundingClientRect(); return { x: (r.x - p.x) / p.width, width: r.width / p.width }; });
+    expect(overlayGeometry.x).toBeCloseTo(rect.x, 3);
+    expect(overlayGeometry.width).toBeCloseTo(rect.width, 3);
+    await expect.poll(() => state.zoom).toBe(1.5);
+    await page.reload();
+    await ready();
+    await expect(page.getByRole("combobox", { name: "Zoom", exact: true })).toHaveText("150%");
+    await zoom("Fit width");
+    const width = await canvas.evaluate((element) => element.getBoundingClientRect().width);
+    await page.getByRole("button", { name: "Hide notebook" }).click();
+    await expect.poll(() => canvas.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(width);
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await ready();
+    await zoom("Fit page");
+    const fits = await canvas.evaluate((element) => { const r = element.getBoundingClientRect(); const p = element.closest(".MuiPaper-root")!; const s = getComputedStyle(p); return r.width <= p.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) + 1 && r.height <= p.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom) + 1; });
+    expect(fits).toBe(true);
+    await expect.poll(() => state.page_number).toBe(1);
+    await page.reload();
+    await ready();
+    await expect(page.getByRole("combobox", { name: "Zoom", exact: true })).toHaveText("Fit page");
+    await expect(page.getByText("Fixture paper text", { exact: true }).last()).toBeVisible();
+    const restoredHighlight = page.locator('section div[aria-hidden="true"] > span').first();
+    await expect(restoredHighlight).toBeVisible();
+    const restoredGeometry = await restoredHighlight.evaluate((element) => { const r = element.getBoundingClientRect(); const p = element.parentElement!.getBoundingClientRect(); return { x: (r.x - p.x) / p.width, width: r.width / p.width }; });
+    expect(restoredGeometry.x).toBeCloseTo(rect.x, 3);
+    expect(restoredGeometry.width).toBeCloseTo(rect.width, 3);
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.getByRole("tab", { name: "Notes", exact: true }).click();
+    await expect(canvas).not.toBeVisible();
+    await page.getByRole("tab", { name: "Paper", exact: true }).click();
+    await expect(canvas).toBeVisible();
+    await page.setViewportSize({ width: 1180, height: 820 });
+    await ready();
+    await page.screenshot({ path: "test-results/pdf-reader-dpr2.png", fullPage: true });
+    // Only a genuine document load failure moves to the proxy.
+    await page.route("https://oa.test/paper.pdf", (route) => route.fulfill({ status: 503, body: "Unavailable" }));
+    await page.reload();
+    await ready();
+    await expect.poll(() => proxyRequests).toBe(1);
+  });
 });
