@@ -18,6 +18,10 @@ class CandidateFeatures:
     rejected: bool = False
     min_semantic_similarity: float = 0.35
     diversity_vector: tuple[float, ...] = ()
+    strong_keyword_evidence: bool = False
+    technicality_probability: float = 0.0
+    topic_gate_passed: bool = False
+    technical_gate_passed: bool = False
 
 
 @dataclass(frozen=True)
@@ -30,6 +34,8 @@ class ScoredCandidate:
     classifier_probability: float = 0.0
     min_semantic_similarity: float = 0.35
     diversity_vector: tuple[float, ...] = ()
+    topic_gate_passed: bool = False
+    technical_gate_passed: bool = False
 
 
 def score_candidates(candidates: Sequence[CandidateFeatures]) -> list[ScoredCandidate]:
@@ -53,6 +59,7 @@ def score_candidates(candidates: Sequence[CandidateFeatures]) -> list[ScoredCand
             "global_classifier": global_weight * global_probability,
             "zotero_similarity": 0.05 * candidate.zotero_similarity,
             "freshness_impact": 0.025 * candidate.freshness_impact + 0.025 * candidate.citation_impact,
+            "technicality": 0.05 * candidate.technicality_probability if candidate.technical_gate_passed else 0.0,
         }
         scored.append(ScoredCandidate(
             paper_id=candidate.paper_id,
@@ -63,12 +70,14 @@ def score_candidates(candidates: Sequence[CandidateFeatures]) -> list[ScoredCand
             classifier_probability=classifier_probability,
             min_semantic_similarity=candidate.min_semantic_similarity,
             diversity_vector=candidate.diversity_vector,
+            topic_gate_passed=candidate.topic_gate_passed,
+            technical_gate_passed=candidate.technical_gate_passed,
         ))
     return sorted(scored, key=lambda item: (-item.final_score, item.paper_id))
 
 
 def _in_scope(candidate: ScoredCandidate) -> bool:
-    return candidate.keyword_score > 0 or candidate.semantic_similarity >= candidate.min_semantic_similarity
+    return candidate.topic_gate_passed and candidate.technical_gate_passed
 
 
 def _cosine(left: tuple[float, ...], right: tuple[float, ...]) -> float:
