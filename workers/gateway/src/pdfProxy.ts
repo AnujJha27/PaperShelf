@@ -30,7 +30,7 @@ export async function proxyPdf(request: Request, sourceId: string, env: GatewayE
   return new Response(upstream.body, { status: upstream.status, headers: output });
 }
 
-function isPublicHttps(value: string): boolean {
+export function isPublicHttps(value: string): boolean {
   try {
     const url = new URL(value);
     const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");

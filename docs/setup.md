@@ -56,13 +56,13 @@ supabase test db
 5. Deploy the Worker and set its secrets (below). Keep Zotero and GitHub
    credentials server-side.
 6. Configure the GitHub Actions secrets (below) and enable the
-   `recommender.yml` workflow.
+   `recommender.yml` and `clean-read.yml` workflows.
 
 GitHub Actions needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENALEX_API_KEY` (optional), `OPENALEX_MAILTO`, `SEMANTIC_SCHOLAR_API_KEY` (optional), `UNPAYWALL_EMAIL`, `ZOTERO_API_KEY`, and `ZOTERO_USER_ID`. The Worker needs the browser-safe Supabase URL/anon key plus GitHub and Zotero secrets listed in the workflow configuration. Never put service-role, Zotero, or GitHub values in `VITE_*` variables.
 
 Web: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_GATEWAY_URL`, optional `VITE_ALLOWED_EMAIL`.
 
-Worker: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, optional `ALLOWED_EMAIL`, `ZOTERO_API_KEY`, `ZOTERO_USER_ID`, `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`, `GITHUB_WORKFLOW`, optional `GITHUB_REF`.
+Worker: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, optional `ALLOWED_EMAIL`, `ZOTERO_API_KEY`, `ZOTERO_USER_ID`, `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`, `GITHUB_WORKFLOW`, optional `GITHUB_CLEAN_READ_WORKFLOW` (defaults to `clean-read.yml`) and `GITHUB_REF`.
 
 Deploy the Worker from the repository root:
 
@@ -76,11 +76,12 @@ done
 
 If you want the convenience guard, also run `npx wrangler secret put
 ALLOWED_EMAIL --config workers/gateway/wrangler.toml`. Set `GITHUB_WORKFLOW` to
-`recommender.yml`; set `GITHUB_REF` to the workflow branch if it is not `main`.
-The fine-grained GitHub token only needs permission to dispatch Actions in this
-repository.
+`recommender.yml`; `GITHUB_CLEAN_READ_WORKFLOW` defaults to `clean-read.yml`.
+Set `GITHUB_REF` to the workflow branch if it is not `main`. The fine-grained
+GitHub token needs Actions write permission for this repository so the Worker
+can dispatch both workflows.
 
-The app is online-only in v1. It stores metadata, state, highlights, embeddings, and notebook JSON; it never stores PDF binaries.
+Clean Read runs only after a user requests it from the reader. The action downloads a known public OA source, hashes it, and stores structured blocks plus private source crops in the `clean-read-assets` bucket; the complete PDF remains at its public source. The extraction workflow uses the same `SUPABASE_SERVICE_ROLE_KEY` GitHub secret as recommender actions. It needs no new paid API or billing account.
 
 The database policy tests require Docker and the Supabase CLI. `supabase start` applies the migrations locally, and `supabase test db` runs the pgTAP suite in `supabase/tests`.
 

@@ -1,6 +1,7 @@
 import { proxyPdf } from "./pdfProxy";
 import { dispatchTrainingBatch, dispatchZoteroSync } from "./githubDispatch";
 import { addToZotero } from "./zotero";
+import { dispatchCleanRead } from "./cleanReadDispatch";
 
 export function healthResponse(): { status: "ok" } {
   return { status: "ok" };
@@ -38,7 +39,7 @@ function withCors(request: Request, response: Response): Response {
 }
 
 export default {
-  async fetch(request: Request, env: { SUPABASE_URL: string; SUPABASE_ANON_KEY: string; ALLOWED_EMAIL?: string; GITHUB_TOKEN: string; GITHUB_OWNER: string; GITHUB_REPO: string; GITHUB_WORKFLOW: string; GITHUB_REF?: string; ZOTERO_API_KEY: string; ZOTERO_USER_ID: string }): Promise<Response> {
+  async fetch(request: Request, env: { SUPABASE_URL: string; SUPABASE_ANON_KEY: string; ALLOWED_EMAIL?: string; GITHUB_TOKEN: string; GITHUB_OWNER: string; GITHUB_REPO: string; GITHUB_WORKFLOW: string; GITHUB_CLEAN_READ_WORKFLOW?: string; GITHUB_REF?: string; ZOTERO_API_KEY: string; ZOTERO_USER_ID: string }): Promise<Response> {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
 
     const url = new URL(request.url);
@@ -51,6 +52,8 @@ export default {
       response = await dispatchZoteroSync(request, env, fetch);
     } else if (request.method === "POST" && url.pathname === "/api/zotero/add") {
       response = await addToZotero(request, env, fetch);
+    } else if (request.method === "POST" && url.pathname === "/api/clean-read") {
+      response = await dispatchCleanRead(request, env, fetch);
     } else {
       const match = url.pathname.match(/^\/api\/pdf\/([^/]+)$/);
       if (request.method === "GET" && match) response = await proxyPdf(request, match[1], env, fetch);
