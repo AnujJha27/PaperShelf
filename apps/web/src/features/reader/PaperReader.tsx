@@ -5,7 +5,9 @@ import { clampPage, fitWidthScale, fitPageScale, readerSources, type PdfErrorKin
 import { PdfDocument } from "./PdfDocument";
 import { HighlightLayer, selectionRects } from "./HighlightLayer";
 
-export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourceId, initialPage = 1, initialScale, initialScroll = 0, inZotero = false, onHighlight, onProgress, onState, onAddToZotero }: { sources: ReaderSource[]; gatewayUrl: string; highlights?: Array<{ source_id?: string | null; page_number: number; rects: Rect[] }>; initialSourceId?: string | null; initialPage?: number; initialScale?: number; initialScroll?: number; inZotero?: boolean; onHighlight: (rects: Rect[], selectedText: string, pageNumber: number, sourceId: string) => void; onProgress?: (state: { sourceId: string; pageNumber: number; zoom: number; scrollOffset: number }) => void; onState?: (action: PaperAction) => void; onAddToZotero?: () => void }) {
+export type ReaderFocus = { sourceId: string; pageNumber: number; bbox: { x: number; y: number; width: number; height: number; page_width: number; page_height: number } | null };
+
+export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourceId, initialPage = 1, initialScale, initialScroll = 0, focus, inZotero = false, onHighlight, onProgress, onState, onAddToZotero }: { sources: ReaderSource[]; gatewayUrl: string; highlights?: Array<{ source_id?: string | null; page_number: number; rects: Rect[] }>; initialSourceId?: string | null; initialPage?: number; initialScale?: number; initialScroll?: number; focus?: ReaderFocus | null; inZotero?: boolean; onHighlight: (rects: Rect[], selectedText: string, pageNumber: number, sourceId: string) => void; onProgress?: (state: { sourceId: string; pageNumber: number; zoom: number; scrollOffset: number }) => void; onState?: (action: PaperAction) => void; onAddToZotero?: () => void }) {
   const urls = useMemo(() => readerSources(sources, gatewayUrl), [sources, gatewayUrl]);
   const [urlIndex, setUrlIndex] = useState(0);
   const [pageNumber, setPageNumber] = useState(initialPage);
@@ -19,11 +21,13 @@ export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourc
   const [paneSize, setPaneSize] = useState({ width: 0, height: 0 });
   const [numPages, setNumPages] = useState<number>();
   const [rects, setRects] = useState<Rect[]>([]);
+  const [flashRects, setFlashRects] = useState<Rect[]>([]);
   const [textLayer, setTextLayer] = useState<HTMLElement>();
   const [failed, setFailed] = useState(false);
   const [pageError, setPageError] = useState(false);
   const scrollContainer = useRef<HTMLDivElement>(null);
   const scrollRestored = useRef(false);
+  const pendingFocus = useRef<ReaderFocus | null>(null);
   const current = urls[urlIndex];
   useEffect(() => {
     setPageNumber(initialPage);
@@ -37,6 +41,16 @@ export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourc
     const index = urls.findIndex((url) => url.sourceId === initialSourceId);
     if (index >= 0) setUrlIndex(index);
   }, [initialSourceId, urls]);
+  useEffect(() => {
+    if (!focus) return;
+    const index = urls.findIndex((url) => url.sourceId === focus.sourceId);
+    if (index >= 0) setUrlIndex(index);
+    setPageNumber(focus.pageNumber);
+    pendingFocus.current = focus;
+    if (focus.bbox) setFlashRects([{ x: focus.bbox.x / focus.bbox.page_width, y: focus.bbox.y / focus.bbox.page_height, width: focus.bbox.width / focus.bbox.page_width, height: focus.bbox.height / focus.bbox.page_height }]);
+    const timer = window.setTimeout(() => setFlashRects([]), 1800);
+    return () => window.clearTimeout(timer);
+  }, [focus?.sourceId, focus?.pageNumber, focus?.bbox?.x, focus?.bbox?.y, focus?.bbox?.width, focus?.bbox?.height, urls]);
   const handleSelection = useCallback(() => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !textLayer || !current) return;
@@ -90,8 +104,13 @@ export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourc
       scrollContainer.current.scrollTop = initialScroll;
       scrollRestored.current = true;
     }
+    const target = pendingFocus.current;
+    if (target && target.sourceId === current?.sourceId && target.pageNumber === pageNumber) {
+      if (scrollContainer.current && target.bbox) scrollContainer.current.scrollTop = (target.bbox.y / target.bbox.page_height) * (pageSize.height * scale);
+      pendingFocus.current = null;
+    }
     setTextLayer(element);
-  }, [initialScroll]);
+  }, [initialScroll, current?.sourceId, pageNumber, pageSize.height, scale]);
   const changeZoom = (value: number) => { setZoomMode("custom"); setScale(Math.max(0.1, Math.min(3, value))); };
 
 
@@ -114,7 +133,7 @@ export function PaperReader({ sources, gatewayUrl, highlights = [], initialSourc
     <Paper ref={scrollContainer} onScroll={(event) => current && numPages && scrollRestored.current && onProgress?.({ sourceId: current.sourceId, pageNumber, zoom: scale, scrollOffset: event.currentTarget.scrollTop })} onMouseUp={handleSelection} sx={{ height: { xs: "60vh", md: "calc(100vh - 250px)" }, minHeight: { md: 480 }, overflow: "auto", scrollbarGutter: "stable", p: { xs: 1, sm: 2 }, bgcolor: "background.paper" }}>
       <div style={{ position: "relative", width: "max-content" }}>
         <PdfDocument url={current.url} gatewayUrl={gatewayUrl} pageNumber={pageNumber} scale={scale} onError={handlePdfError} onNumPages={handleNumPages} onPageSize={onPageSize} onTextLayer={handleTextLayer} />
-        <HighlightLayer rects={[...highlights.filter((highlight) => highlight.source_id === current.sourceId && highlight.page_number === pageNumber).flatMap((highlight) => highlight.rects), ...rects]} />
+        <HighlightLayer rects={[...highlights.filter((highlight) => highlight.source_id === current.sourceId && highlight.page_number === pageNumber).flatMap((highlight) => highlight.rects), ...rects, ...flashRects]} />
       </div>
     </Paper>
   </Box>;

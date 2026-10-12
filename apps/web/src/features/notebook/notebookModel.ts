@@ -1,6 +1,8 @@
 export type StrokePoint = [number, number, number];
 export type StrokeObject = { type: "stroke"; id: string; points: StrokePoint[]; width: number };
-export type TextObject = { type: "text"; id: string; x: number; y: number; w: number; h: number; text: string; fontSize: number };
+export type PaperSourceAnchor = { paperId: string; sourceId: string; sourceHash: string; documentId: string; blockId: string; pageNumber: number; bbox: { x: number; y: number; width: number; height: number; page_width: number; page_height: number }; startOffset: number | null; endOffset: number | null; sourceContext: string | null; assetPath?: string };
+export type NotebookQuote = { id: string; text: string; anchor: PaperSourceAnchor };
+export type TextObject = { type: "text"; id: string; x: number; y: number; w: number; h: number; text: string; fontSize: number; paperAnchor?: PaperSourceAnchor };
 export type NotebookObject = StrokeObject | TextObject;
 export type NotebookPage = { id: string; pageIndex: number; objects: NotebookObject[] };
 
@@ -60,6 +62,10 @@ export function eraseStrokeAt(stroke: StrokeObject, x: number, y: number, radius
   });
   if (segment.length) segments.push(segment);
   return segments.map((points, index) => ({ ...stroke, id: index ? `${stroke.id}-${index}` : stroke.id, points }));
+}
+
+export function eraseStrokesAt(objects: NotebookObject[], x: number, y: number, radius = 0.012): NotebookObject[] {
+  return objects.flatMap((object): NotebookObject[] => object.type === "stroke" ? eraseStrokeAt(object, x, y, radius) : [object]);
 }
 
 export function moveObject<T extends NotebookObject>(object: T, dx: number, dy: number): T {

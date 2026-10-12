@@ -218,7 +218,7 @@ test.describe("PDF reader quality", () => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.getByRole("tab", { name: "Notes", exact: true }).click();
     await expect(canvas).not.toBeVisible();
-    await page.getByRole("tab", { name: "Paper", exact: true }).click();
+    await page.getByRole("tab", { name: "PDF", exact: true }).click();
     await expect(canvas).toBeVisible();
     await page.setViewportSize({ width: 1180, height: 820 });
     await ready();
