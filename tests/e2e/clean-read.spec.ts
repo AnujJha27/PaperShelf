@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
 const user = { id: "user-1", email: "researcher@example.test" };
@@ -17,7 +18,7 @@ const assets = blocks.filter((block) => block.asset_id).map((block, index) => ({
 const references = [{ id: "ref-1", document_id: document.id, block_id: null, reference_key: "1", title: "A formal account of agents", authors: ["Smith, J."], year: 2025, venue: "Conference", doi: "10.1234/ref", arxiv_id: null, canonical_url: "https://doi.org/10.1234/ref", raw_text: "[1] Smith, J. A formal account of agents. 2025.", page_number: 1, bbox: blocks[1].bbox }];
 
 test("requests Clean Read on demand and keeps source navigation and notes working", async ({ page }) => {
-  const fixturePdf = await readFile("services/extraction/tests/fixtures/two_column_research.pdf");
+  const fixturePdf = await readFile(resolve(process.cwd(), "../../services/extraction/tests/fixtures/two_column_research.pdf"));
   let jobStatus = "queued";
   let workflowDispatches = 0;
   let activeDocument = document;
