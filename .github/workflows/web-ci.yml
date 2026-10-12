@@ -18,12 +18,22 @@ jobs:
           cache: pnpm
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
       - uses: astral-sh/setup-uv@v6
         with:
-          version: latest
+          version: 0.13.0
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/docling
+            ~/.cache/huggingface/hub
+          key: docling-models-${{ runner.os }}-v1
+      - run: pnpm test:js
+      - run: pnpm test:python
+      - run: pnpm test:extraction
+        env:
+          CLEAN_READ_FIXTURE: "1"
       - run: pnpm lint
       - run: pnpm build
       - run: pnpm --filter @paper-radar/web exec playwright install --with-deps chromium

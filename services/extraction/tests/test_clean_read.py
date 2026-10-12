@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
-from clean_read import _crop_asset, _next_section, _retry_native_text, clean_tokens, normalized_bbox, padded_bbox, parse_reference, process_job, public_pdf_url, text_overlap, validate_table, valid_bbox
+from paper_radar_extraction.clean_read import _crop_asset, _next_section, _retry_native_text, clean_tokens, normalized_bbox, padded_bbox, parse_reference, process_job, public_pdf_url, text_overlap, validate_table, valid_bbox
 
 
 class CleanReadValidationTests(unittest.TestCase):
@@ -129,9 +129,9 @@ class CleanReadJobTests(unittest.TestCase):
 
         package = {"id": "new-document", "source_url": source["pdf_url"], "source_updated_at": source["updated_at"], "source_hash": "f" * 64, "status": "ready"}
         with patch.dict(os.environ, {"SUPABASE_URL": "https://supabase.example", "SUPABASE_SERVICE_ROLE_KEY": "worker-key"}), \
-             patch("clean_read._rest", side_effect=rest), patch("clean_read._transition"), \
-             patch("clean_read._download_pdf", side_effect=download), patch("clean_read._extract", return_value=(package, [], [], [], {})) as extract, \
-             patch("clean_read._request", side_effect=commit):
+             patch("paper_radar_extraction.clean_read._rest", side_effect=rest), patch("paper_radar_extraction.clean_read._transition"), \
+             patch("paper_radar_extraction.clean_read._download_pdf", side_effect=download), patch("paper_radar_extraction.clean_read._extract", return_value=(package, [], [], [], {})) as extract, \
+             patch("paper_radar_extraction.clean_read._request", side_effect=commit):
             process_job("job")
         return queried_documents, extract
 

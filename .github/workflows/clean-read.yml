@@ -23,8 +23,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
-          cache-dependency-path: services/extraction/requirements.txt
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.13.0
       - uses: actions/cache@v4
         with:
           path: |
@@ -35,14 +36,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes tesseract-ocr
-      - name: Install pinned extraction dependencies
-        run: python -m pip install --disable-pip-version-check -r services/extraction/requirements.txt
+      - name: Install pinned extraction project
+        run: uv sync --project services/extraction --locked
       - name: Check extraction and representative PDF fixture
         working-directory: services/extraction
-        run: CLEAN_READ_FIXTURE=1 python -m unittest discover -s tests -v
+        run: uv run --locked pytest -q -v
+        env:
+          CLEAN_READ_FIXTURE: "1"
       - name: Process requested Clean Read job
         working-directory: services/extraction
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python clean_read.py --job-id "${{ inputs.job_id }}"
+        run: uv run --locked paper-radar-clean-read --job-id "${{ inputs.job_id }}"

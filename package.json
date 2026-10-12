@@ -8,13 +8,15 @@
     "packages/shared"
   ],
   "scripts": {
-    "test": "npm run test --workspaces --if-present && npm run test:python",
-    "lint": "eslint . && npm run typecheck --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present",
-    "test:web": "npm run test --workspace apps/web",
-    "test:worker": "npm run test --workspace workers/gateway",
-    "test:python": "uv run --project services/recommender pytest -q",
-    "test:e2e": "playwright test"
+    "test": "pnpm test:js && pnpm test:python && pnpm test:extraction",
+    "test:js": "pnpm --recursive --if-present test",
+    "test:python": "cd services/recommender && uv sync --locked --no-install-project && uv run --locked --no-sync pytest -q",
+    "test:extraction": "cd services/extraction && uv run --locked pytest -q",
+    "lint": "eslint . && pnpm --recursive --if-present typecheck",
+    "build": "pnpm --recursive --if-present build",
+    "test:web": "pnpm --filter @paper-radar/web test",
+    "test:worker": "pnpm --filter @paper-radar/gateway test",
+    "test:e2e": "pnpm --filter @paper-radar/web exec playwright test --config ../../playwright.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
