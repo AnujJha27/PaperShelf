@@ -15,6 +15,7 @@ class FeedConfig:
     min_semantic_similarity: float = 0.35
     priority_keywords: list[str] = field(default_factory=list)
     min_publication_year: int = 2018
+    paper_type: str = "broad"
 
 
 @dataclass

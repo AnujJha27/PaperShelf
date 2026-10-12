@@ -8,6 +8,7 @@ export type Feed = {
   priority_keywords: string[];
   min_semantic_similarity: number;
   min_publication_year: number;
+  paper_type: "technical" | "broad";
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -21,6 +22,7 @@ export type FeedInput = {
   priority_keywords?: string;
   min_semantic_similarity?: number;
   min_publication_year?: number;
+  paper_type?: "technical" | "broad";
 };
 
 export type AppSettings = {

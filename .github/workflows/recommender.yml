@@ -30,7 +30,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
-          version: latest
+          version: 0.11.16
+          enable-cache: true
+          cache-dependency-glob: services/recommender/uv.lock
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/hub
+          key: bge-small-en-v1.5
       - name: Run scheduled discovery
         if: github.event_name == 'schedule'
         working-directory: services/recommender
@@ -44,7 +50,7 @@ jobs:
           UNPAYWALL_EMAIL: ${{ secrets.UNPAYWALL_EMAIL }}
           ZOTERO_API_KEY: ${{ secrets.ZOTERO_API_KEY }}
           ZOTERO_USER_ID: ${{ secrets.ZOTERO_USER_ID }}
-        run: uv run --extra ml paper-radar run --mode scheduled
+        run: uv run --locked --extra ml paper-radar run --mode scheduled
       - name: Run requested job
         if: github.event_name == 'workflow_dispatch'
         working-directory: services/recommender
@@ -58,4 +64,4 @@ jobs:
           UNPAYWALL_EMAIL: ${{ secrets.UNPAYWALL_EMAIL }}
           ZOTERO_API_KEY: ${{ secrets.ZOTERO_API_KEY }}
           ZOTERO_USER_ID: ${{ secrets.ZOTERO_USER_ID }}
-        run: uv run --extra ml paper-radar run --mode "${{ inputs.mode }}" --request-id "${{ inputs.request_id }}" --feed-id "${{ inputs.feed_id }}" --batch-size "${{ inputs.batch_size }}"
+        run: uv run --locked --extra ml paper-radar run --mode "${{ inputs.mode }}" --request-id "${{ inputs.request_id }}" --feed-id "${{ inputs.feed_id }}" --batch-size "${{ inputs.batch_size }}"

@@ -1,6 +1,6 @@
 import unittest
 from io import BytesIO
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from unittest.mock import patch
 from uuid import UUID
 
@@ -32,14 +32,38 @@ class RunLifecycleTests(unittest.TestCase):
         with patch("paper_radar.db.urlopen", side_effect=[timeout, response]) as urlopen, patch("paper_radar.db.sleep") as sleep:
             self.assertEqual(db.request("GET", "papers", {"select": "id"}), [])
         self.assertEqual(urlopen.call_count, 2)
-        sleep.assert_called_once_with(1)
+        self.assertEqual(sleep.call_count, 1)
+
+    def test_safe_post_retries_transient_gateway_failure(self):
+        db = SupabaseDB("https://supabase.test", "key", "user")
+        timeout = HTTPError("https://supabase.test/rest/v1/rpc/resolve", 502, "Bad Gateway", {}, BytesIO(b"busy"))
+        response = type("Response", (), {"__enter__": lambda self: self, "__exit__": lambda self, *args: None, "read": lambda self: b'[{"id":"paper"}]'})()
+        with patch("paper_radar.db.urlopen", side_effect=[timeout, response]) as urlopen, patch("paper_radar.db.sleep") as sleep:
+            self.assertEqual(db.request("POST", "rpc/resolve", payload={}, retry_safe=True), [{"id": "paper"}])
+        self.assertEqual(urlopen.call_count, 2)
+        sleep.assert_called_once()
+
+    def test_network_error_retries_only_when_operation_is_safe(self):
+        db = SupabaseDB("https://supabase.test", "key", "user")
+        response = type("Response", (), {"__enter__": lambda self: self, "__exit__": lambda self, *args: None, "read": lambda self: b"[]"})()
+        with patch("paper_radar.db.urlopen", side_effect=[URLError("offline"), response]) as urlopen, patch("paper_radar.db.sleep"):
+            self.assertEqual(db.request("GET", "papers"), [])
+        self.assertEqual(urlopen.call_count, 2)
+
+    def test_semantic_client_error_is_not_retried(self):
+        db = SupabaseDB("https://supabase.test", "key", "user")
+        conflict = HTTPError("https://supabase.test/rest/v1/papers", 409, "Conflict", {}, BytesIO(b"duplicate"))
+        with patch("paper_radar.db.urlopen", side_effect=conflict) as urlopen:
+            with self.assertRaisesRegex(RuntimeError, "returned 409"):
+                db.request("POST", "papers", payload={"title": "Paper"}, retry_safe=True)
+        self.assertEqual(urlopen.call_count, 1)
 
     def test_create_run_promotes_existing_queued_request(self):
         run_id = "00000000-0000-0000-0000-000000000001"
         calls = []
         db = SupabaseDB("https://supabase.test", "key", "user")
 
-        def request(method, table, query=None, payload=None):
+        def request(method, table, query=None, payload=None, **kwargs):
             calls.append((method, table, query, payload))
             return [{"id": run_id}] if method == "GET" else []
 
@@ -58,38 +82,37 @@ class RunLifecycleTests(unittest.TestCase):
         self.assertEqual(link[3]["best_score"], 0.75)
         self.assertIn("last_seen_at", link[3])
 
-    def test_upsert_reuses_exact_identifier_from_paper_identifiers(self):
+    def test_upsert_uses_transactional_identity_rpc_with_all_identifiers(self):
         db = SupabaseDB("https://supabase.test", "key", "user")
         calls = []
 
-        def request(method, table, query=None, payload=None):
-            calls.append((method, table, query, payload))
-            if method == "GET" and table == "paper_identifiers":
-                return [{"paper_id": "paper-id"}]
-            if method == "GET" and table == "papers":
-                return [{"id": "paper-id", "abstract": None, "authors": [], "venue": None, "canonical_url": None, "citation_count": None}]
+        def request(method, table, query=None, payload=None, **kwargs):
+            calls.append((method, table, query, payload, kwargs))
+            if method == "POST" and table == "rpc/resolve_paper_candidate":
+                return [{"id": "paper-id"}]
             return []
 
         db.request = request
         paper_id = db.upsert_candidate(CandidateWork("Paper", identifiers={"arxiv": "1234.5678"}))
         self.assertEqual(paper_id, "paper-id")
-        self.assertEqual(calls[0][1], "paper_identifiers")
+        self.assertEqual(calls[0][1], "rpc/resolve_paper_candidate")
+        self.assertEqual(calls[0][3]["p_identifiers"], {"arxiv": "1234.5678"})
+        self.assertTrue(calls[0][4]["retry_safe"])
 
-    def test_upsert_uses_normalized_title_fallback_candidates(self):
+    def test_upsert_creates_identityless_candidate_through_atomic_rpc(self):
         db = SupabaseDB("https://supabase.test", "key", "user")
         calls = []
-        existing = {"id": "paper-id", "title": "A useful study!", "authors": [{"name": "A"}], "publication_year": 2024, "abstract": None, "venue": None, "canonical_url": None, "citation_count": None}
 
-        def request(method, table, query=None, payload=None):
+        def request(method, table, query=None, payload=None, **kwargs):
             calls.append((method, table, query, payload))
-            if method == "GET" and table == "papers" and str((query or {}).get("title", "")).startswith("ilike."):
-                return [existing]
+            if method == "POST" and table == "rpc/resolve_paper_candidate":
+                return [{"id": "paper-id"}]
             return []
 
         db.request = request
         paper_id = db.upsert_candidate(CandidateWork("A useful study", authors=["A"], publication_year=2024))
         self.assertEqual(paper_id, "paper-id")
-        self.assertTrue(str(calls[0][2]["title"]).startswith("ilike."))
+        self.assertEqual(calls[0][3]["p_identifiers"], {})
 
     def test_stale_feed_embedding_is_updated_in_place(self):
         calls = []

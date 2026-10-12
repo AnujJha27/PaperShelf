@@ -1,0 +1,96 @@
+{"split":"train","label":1,"text":"Verifier-guided inference-time search for language models. We introduce a search algorithm that uses formal proof feedback to select candidate reasoning traces, with ablations and benchmark evaluation."}
+{"split":"train","label":1,"text":"A type-theoretic framework for proof-producing program synthesis. The method constructs terms by backward chaining in dependent type theory and proves soundness."}
+{"split":"train","label":1,"text":"Formal verification of neural network controllers with abstract interpretation. We derive reachable-state bounds and verify safety properties for nonlinear systems."}
+{"split":"train","label":1,"text":"Sparse mixture-of-experts transformers for efficient language model training. A routing architecture reduces compute while preserving perplexity and downstream accuracy."}
+{"split":"train","label":1,"text":"Optimization methods for decentralized federated learning under communication constraints. We establish convergence rates and evaluate the algorithm on distributed benchmarks."}
+{"split":"train","label":1,"text":"A minimax theory of adaptive confidence intervals for high-dimensional regression. We prove lower bounds and construct an estimator attaining the optimal rate."}
+{"split":"train","label":1,"text":"The complexity of deciding equivalence in a fragment of dependent type theory. We give a decision procedure, prove termination, and establish a matching lower bound."}
+{"split":"train","label":1,"text":"Rectified flow models for high-resolution image generation. We derive a transport objective and compare sampling algorithms on standard image benchmarks."}
+{"split":"train","label":1,"text":"An event-driven architecture for low-latency vector search systems. The system design combines indexing and memory allocation algorithms and is evaluated under load."}
+{"split":"train","label":1,"text":"Statistical guarantees for conformal prediction with distribution shift. We prove finite-sample coverage bounds and validate the procedure on controlled experiments."}
+{"split":"train","label":1,"text":"Proof search with learned heuristics in Lean. A policy ranks tactic applications and a verifier checks every generated proof; experiments report theorem-proving success rates."}
+{"split":"train","label":1,"text":"A finite-element method for an inverse problem governed by elliptic partial differential equations. We establish stability and convergence in Sobolev norms."}
+{"split":"train","label":1,"text":"Approximation algorithms for submodular maximization on dynamic graphs. We prove approximation ratios and analyze update time."}
+{"split":"train","label":1,"text":"Risk-sensitive portfolio optimization with order-book features. We formulate a stochastic control problem and evaluate a calibrated predictor against quantitative baselines."}
+{"split":"train","label":1,"text":"Benchmarking tool-using language model agents with executable formal semantics. Tasks are generated from typed programs and scored by exact execution outcomes."}
+{"split":"train","label":1,"text":"Multimodal representation learning with cross-attention between images and speech. The model objective aligns paired embeddings and improves retrieval benchmarks."}
+{"split":"train","label":1,"text":"A proof of a new bound on random matrix eigenvalues using concentration inequalities. The argument yields a sharper asymptotic rate for sparse matrices."}
+{"split":"train","label":1,"text":"Memory reclamation algorithms for concurrent storage engines. We prove linearizability and measure throughput and tail latency on multicore systems."}
+{"split":"train","label":1,"text":"Bayesian inference for hierarchical models using a variational message-passing algorithm. We analyze approximation error and compare posterior estimates."}
+{"split":"train","label":1,"text":"A federated multi-agent reinforcement learning algorithm with regret guarantees. Agents exchange compressed gradients and converge under nonstationary rewards."}
+{"split":"train","label":0,"text":"University students' perceptions of large language models in coursework. Semi-structured interviews identify themes in trust, motivation, and academic integrity."}
+{"split":"train","label":0,"text":"Teachers' adoption of generative AI in secondary education: a survey of perceived usefulness, workload, and institutional support."}
+{"split":"train","label":0,"text":"Ethical governance of autonomous AI agents. We review accountability principles and propose recommendations for public institutions."}
+{"split":"train","label":0,"text":"Public attitudes toward artificial intelligence in health care. A qualitative study analyzes interviews about trust, privacy, and consent."}
+{"split":"train","label":0,"text":"Organizational responses to algorithmic decision systems. Case studies describe worker experiences and changes to professional practice."}
+{"split":"train","label":0,"text":"The societal impact of machine learning in schools. This policy analysis discusses equity, procurement, and regulation."}
+{"split":"train","label":0,"text":"How researchers understand responsible AI: an interview study of norms, incentives, and institutional governance."}
+{"split":"train","label":0,"text":"A review of philosophical arguments about artificial intelligence and human creativity. The paper examines concepts of authorship and agency."}
+{"split":"train","label":0,"text":"Parents' views on automated tutoring systems. Focus groups explore concerns about children's independence and privacy."}
+{"split":"train","label":0,"text":"AI adoption and productivity in public agencies: evidence from a survey of managers and policy staff."}
+{"split":"train","label":0,"text":"Media framing of autonomous vehicles and artificial intelligence. A qualitative content analysis examines public narratives and risk perception."}
+{"split":"train","label":0,"text":"Ethics education for data scientists: instructors' experiences and curriculum choices across universities."}
+{"split":"train","label":0,"text":"Community perceptions of predictive policing tools. Interviews document legitimacy concerns and demands for oversight."}
+{"split":"train","label":0,"text":"A comparative policy review of generative AI regulation in higher education. We summarize institutional guidance and unresolved governance questions."}
+{"split":"train","label":0,"text":"How patients make sense of AI-assisted diagnosis. The study uses thematic analysis of interviews about responsibility and communication."}
+{"split":"train","label":0,"text":"The labor-market implications of automation: a sociological analysis of worker narratives and organizational change."}
+{"split":"train","label":0,"text":"Public perceptions of language models and misinformation. A questionnaire measures awareness, concern, and media literacy."}
+{"split":"train","label":0,"text":"A humanities analysis of artificial intelligence in contemporary literature, focusing on agency, identity, and cultural meaning."}
+{"split":"train","label":0,"text":"Student and teacher attitudes toward automated feedback tools. Survey responses describe classroom acceptance and perceived fairness."}
+{"split":"train","label":0,"text":"Governance challenges for multi-agent AI in society. We discuss accountability gaps and international policy options."}
+{"split":"train","label":1,"text":"Quantization-aware training for compact language models. We derive a mixed-precision objective and measure accuracy, memory use, and inference latency."}
+{"split":"train","label":1,"text":"A sublinear algorithm for approximate nearest-neighbor search in high-dimensional spaces. We prove query and memory bounds and evaluate recall on benchmark datasets."}
+{"split":"train","label":1,"text":"A decidable fragment of higher-order logic for verified synthesis. We provide a completeness theorem and an implementation in a proof assistant."}
+{"split":"train","label":1,"text":"Robust optimization for distributionally shifted image classification. The method minimizes a worst-case empirical risk and is tested across corruption benchmarks."}
+{"split":"train","label":1,"text":"An asymptotic limit theorem for dependent random variables. We establish convergence rates using coupling and martingale methods."}
+{"split":"train","label":1,"text":"A SAT solver based on conflict-driven clause learning with proof certificates. We prove certificate soundness and compare runtime on standard instances."}
+{"split":"train","label":1,"text":"Causal representation learning with identifiable latent variables. We state sufficient assumptions and evaluate recovery error in synthetic and real data."}
+{"split":"train","label":1,"text":"A parallel runtime for heterogeneous accelerators. The scheduling algorithm improves utilization and is evaluated on scientific workloads."}
+{"split":"train","label":1,"text":"Statistical decision theory for sparse inverse problems. We derive minimax risk bounds and construct an estimator that attains them."}
+{"split":"train","label":1,"text":"A decentralized algorithm for cooperative agents with communication delays. We prove a sublinear regret guarantee under partial observability."}
+{"split":"train","label":1,"text":"Calibrated machine learning for limit-order-book prediction. We evaluate probabilistic forecasts, transaction-cost-adjusted returns, and risk across markets."}
+{"split":"train","label":1,"text":"A benchmark for code-generating language models with unit tests and execution-based scoring. We specify tasks, baselines, and reproducible evaluation protocols."}
+{"split":"train","label":0,"text":"Farmers' attitudes toward generative AI in agricultural extension. Interviews describe perceived usefulness, trust, and access barriers."}
+{"split":"train","label":0,"text":"A policy analysis of automated decision systems in local government. We compare procurement rules, oversight practices, and accountability mechanisms."}
+{"split":"train","label":0,"text":"How university faculty negotiate generative AI policies. Focus groups reveal disagreements about learning, authorship, and assessment."}
+{"split":"train","label":0,"text":"Public sentiment about machine learning in financial services. A nationally representative survey measures trust and perceived consumer risk."}
+{"split":"train","label":0,"text":"A legal review of responsibility for decisions made by autonomous AI agents. We analyze statutes and propose governance principles."}
+{"split":"train","label":0,"text":"Narratives of algorithmic bias in hiring. A qualitative media study examines fairness claims and public controversy."}
+{"split":"train","label":0,"text":"The meaning of artificial intelligence in contemporary art criticism. This humanities essay examines authorship and cultural imagination."}
+{"split":"train","label":0,"text":"Teachers' experiences using automated writing feedback. Thematic coding of interviews describes classroom practice and concerns."}
+{"split":"train","label":0,"text":"Organizational adoption of decision support software in hospitals. Interviews explore professional autonomy and institutional change."}
+{"split":"train","label":0,"text":"An ethics framework for generative AI in public services. We discuss values, stakeholder responsibilities, and governance options."}
+{"split":"train","label":0,"text":"Parents' and students' views on AI tutoring. Survey analysis reports awareness, comfort, and concerns about privacy."}
+{"split":"train","label":0,"text":"A comparative study of national AI strategies and their approach to innovation, labor, and public accountability."}
+{"split":"test","label":1,"text":"We prove a sharp upper bound for the chromatic number of sparse random graphs using a probabilistic argument."}
+{"split":"test","label":1,"text":"A memory-efficient optimizer for training transformer networks. Convergence is analyzed and performance is measured on public benchmarks."}
+{"split":"test","label":1,"text":"An executable semantics for multi-agent planning with typed tool calls. A soundness theorem guarantees that accepted traces satisfy the specification."}
+{"split":"test","label":1,"text":"The training data include anonymized student responses, but the contribution is a federated optimization algorithm with convergence guarantees and bandwidth evaluation."}
+{"split":"test","label":1,"text":"A finite-sample analysis of Bayesian variable selection under model misspecification. We establish posterior contraction rates."}
+{"split":"test","label":1,"text":"An event-time simulator for limit order books. We specify the matching algorithm and compare predictive models on held-out market data."}
+{"split":"test","label":1,"text":"A proof of normalization for a dependent type calculus with effects. The result follows from a logical-relations argument."}
+{"split":"test","label":1,"text":"A new numerical method for solving nonlinear partial differential equations, with stability analysis and convergence experiments."}
+{"split":"test","label":0,"text":"A survey of university students' views on language-model accuracy, fairness, and the effects on learning."}
+{"split":"test","label":0,"text":"An interview study of software engineers' perceptions of AI code assistants and changes to professional identity."}
+{"split":"test","label":0,"text":"Policy recommendations for responsible autonomous systems, based on a review of governance frameworks and accountability principles."}
+{"split":"test","label":0,"text":"Teachers' perspectives on AI tutoring tools, analyzed through qualitative interviews and classroom observations."}
+{"split":"test","label":0,"text":"A humanities study of algorithmic authorship and cultural value in generative media."}
+{"split":"test","label":0,"text":"The paper uses a regression model to analyze public attitudes toward machine-learning decisions in welfare services."}
+{"split":"test","label":0,"text":"A comparative governance analysis of federated learning deployments in public institutions."}
+{"split":"test","label":0,"text":"Organizational case studies of how doctors interpret AI risk scores and negotiate responsibility for patient care."}
+{"split":"test","label":1,"text":"Formal semantics for tool-using language-model agents. We define typed action traces and prove soundness of a verifier for executable agent plans."}
+{"split":"test","label":1,"text":"A new theorem on spectral gaps of random graphs, with a proof based on martingale concentration and an asymptotically tight bound."}
+{"split":"test","label":1,"text":"A learned index for distributed vector databases. The architecture is evaluated for throughput, memory use, and query latency."}
+{"split":"test","label":1,"text":"Machine learning for options pricing under stochastic volatility. We derive a constrained estimator and compare out-of-sample pricing error and calibration."}
+{"split":"test","label":1,"text":"Formal verification of a compiler optimization using refinement types. The proof establishes semantic preservation for every transformed program."}
+{"split":"test","label":1,"text":"A mathematical analysis of adaptive algorithms for online convex optimization. We prove a regret bound without assumptions on strong convexity."}
+{"split":"test","label":1,"text":"Education data are used as an incidental example in evaluating a new federated gradient compression algorithm. Convergence is proved and benchmark results are reported."}
+{"split":"test","label":1,"text":"Efficient diffusion sampling through adaptive numerical integration. We derive an error bound for the solver and evaluate generated samples."}
+{"split":"test","label":0,"text":"Interviews with university students about how language models change study habits, assessment, and their sense of authorship."}
+{"split":"test","label":0,"text":"A survey of school leaders on generative AI policy, procurement, and teacher training needs."}
+{"split":"test","label":0,"text":"Ethical governance of autonomous AI agents: a conceptual analysis of accountability and public oversight."}
+{"split":"test","label":0,"text":"Public attitudes toward machine learning in clinical practice, measured through focus groups and thematic coding."}
+{"split":"test","label":0,"text":"A sociology of algorithmic management examining employee perceptions, workplace power, and organizational responses."}
+{"split":"test","label":0,"text":"Policy options for artificial intelligence in education, comparing regulatory documents and institutional guidance."}
+{"split":"test","label":0,"text":"A humanities perspective on language models and authorship, based on close reading of contemporary literary criticism."}
+{"split":"test","label":0,"text":"Teachers' experiences with AI tutoring platforms, reported through qualitative interviews and thematic analysis."}

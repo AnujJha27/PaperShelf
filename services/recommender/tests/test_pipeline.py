@@ -17,6 +17,30 @@ class FakeAdapter:
 
 
 class PipelineTests(unittest.TestCase):
+    def test_candidate_persistence_failure_isolated_and_warned(self):
+        class MixedDB(InMemoryDB):
+            def upsert_candidate(self, candidate):
+                if candidate.title == "Broken":
+                    raise RuntimeError("Supabase POST paper_identifiers returned 409: conflict")
+                return super().upsert_candidate(candidate)
+
+        class Adapter:
+            def search(self, feed, limit):
+                return [
+                    CandidateWork("Broken", identifiers={"doi": "10.1000/broken"}, metadata={"semantic_similarity": 1.0}),
+                    CandidateWork("Good", identifiers={"doi": "10.1000/good"}, metadata={"semantic_similarity": 1.0}),
+                ]
+
+        db = MixedDB()
+        feed = FeedConfig("topic", id="feed", name="Feed")
+        result = run_pipeline("training", [feed], PipelineSettings(), db, Adapter())
+        self.assertEqual(result.status, "completed_with_warnings")
+        self.assertEqual(result.stats["recommendations"], 1)
+        self.assertEqual(result.stats["warnings"][0]["feed_id"], "feed")
+        self.assertEqual(result.stats["warnings"][0]["candidate_identifiers"], {"doi": "10.1000/broken"})
+        self.assertEqual(result.stats["warnings"][0]["stage"], "recommendation_persistence")
+        self.assertEqual(db.runs[next(iter(db.runs))]["status"], "completed_with_warnings")
+
     def test_scheduled_mode_stops_before_discovery_when_not_stable(self):
         adapter = FakeAdapter()
         result = run_pipeline("scheduled", [FeedConfig("topic")], PipelineSettings(), InMemoryDB(), adapter)
@@ -29,6 +53,24 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(result.status, "completed")
         self.assertEqual(adapter.limits, [2])
         self.assertEqual(result.stats["candidates"], 4)
+
+    def test_scheduled_candidate_failure_keeps_other_results_and_run_warning_state(self):
+        class MixedDB(InMemoryDB):
+            def upsert_candidate(self, candidate):
+                if candidate.title == "Broken":
+                    raise RuntimeError("Supabase POST paper_identifiers returned 409: conflict")
+                return super().upsert_candidate(candidate)
+
+        class Adapter:
+            def search(self, feed, limit):
+                return [CandidateWork("Broken", metadata={"semantic_similarity": 1}), CandidateWork("Good", metadata={"semantic_similarity": 1})]
+
+        db = MixedDB()
+        settings = PipelineSettings(recommender_mode="stable", schedule_enabled=True)
+        result = run_pipeline("scheduled", [FeedConfig("topic", id="feed")], settings, db, Adapter())
+        self.assertEqual(result.status, "completed_with_warnings")
+        self.assertEqual(result.stats["recommendations"], 1)
+        self.assertEqual(len(result.stats["warnings"]), 1)
 
     def test_excluded_candidates_are_not_persisted(self):
         class Adapter(FakeAdapter):
@@ -66,15 +108,15 @@ class PipelineTests(unittest.TestCase):
 
         db = InMemoryDB()
         result = run_pipeline("training", [FeedConfig("topic", include_keywords=["graph theory"], exclude_keywords=["benchmark"], min_semantic_similarity=0.5)], PipelineSettings(), db, Adapter())
-        self.assertEqual(result.stats["recommendations"], 3)
-        self.assertEqual(result.stats["candidates_in_scope"], 3)
+        self.assertEqual(result.stats["recommendations"], 2)
+        self.assertEqual(result.stats["candidates_in_scope"], 2)
 
     def test_degraded_feed_is_reported_without_failing_run(self):
         class Adapter(FakeAdapter):
             warnings = [{"provider": "OpenAlex", "category": "rate_limited", "message": "provider rate limited request"}]
 
         result = run_pipeline("training", [FeedConfig("topic")], PipelineSettings(), InMemoryDB(), Adapter(1))
-        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.status, "completed_with_warnings")
         self.assertEqual(result.stats["feeds_degraded"], 1)
         self.assertEqual(result.stats["warnings"][0]["provider"], "OpenAlex")
 
@@ -89,7 +131,7 @@ class PipelineTests(unittest.TestCase):
     def test_manual_mode_uses_persisted_model_features_for_ranked_slots(self):
         class RankedDB(InMemoryDB):
             def candidate_features(self, candidate, feed):
-                return CandidateFeatures(candidate.title, 0.8, 0.0, global_probability=1.0 if candidate.title == "ZBest" else 0.0)
+                return CandidateFeatures(candidate.title, 0.8, 0.0, global_probability=1.0 if candidate.title == "ZBest" else 0.0, topic_gate_passed=True, technical_gate_passed=True)
 
         class Adapter(FakeAdapter):
             def search(self, feed, limit):

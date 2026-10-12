@@ -8,6 +8,7 @@ describe("starter feeds", () => {
     expect(starterFeeds.some((feed) => feed.name === "Mathematics, Probability & Statistics")).toBe(true);
     expect(starterFeeds.some((feed) => feed.name === "Multi-Agent & Federated Learning")).toBe(true);
     expect(starterFeeds.some((feed) => feed.name === "Machine Learning for Finance")).toBe(true);
+    expect(starterFeeds.every((feed) => feed.paper_type === "technical")).toBe(true);
     expect(uncreatedStarterFeeds([{ name: "frontier ml & llms" }])).not.toContainEqual(
       expect.objectContaining({ name: "Frontier ML & LLMs" }),
     );

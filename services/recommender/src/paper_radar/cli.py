@@ -24,7 +24,14 @@ def main() -> None:
     run.add_argument("--request-id", type=_optional_uuid)
     run.add_argument("--feed-id")
     run.add_argument("--batch-size", type=_batch_size, default=25)
+    subparsers.add_parser("reconcile-identities", help="merge existing canonical papers that share durable identifiers")
     args = parser.parse_args()
+    if args.command == "reconcile-identities":
+        if not (os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY")):
+            raise SystemExit("reconcile-identities requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY")
+        merged = SupabaseDB.from_env().reconcile_identity_conflicts()
+        print({"identity_groups_merged": merged})
+        return
     if args.command == "run":
         mode = "zotero_sync" if args.mode == "zotero-sync" else args.mode
         if os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY"):
@@ -66,7 +73,7 @@ def main() -> None:
                 UnpaywallAdapter(os.environ["UNPAYWALL_EMAIL"], RequestBudget(request_budget)) if os.getenv("UNPAYWALL_EMAIL") else None,
             )
             result = run_pipeline(mode, feeds, settings, db, adapter, args.request_id)
-            if result.status == "completed" and mode in {"training", "manual", "scheduled"}:
+            if result.status in {"completed", "completed_with_warnings"} and mode in {"training", "manual", "scheduled"}:
                 result.stats.update(train_and_store_models(db))
         else:
             result = run_pipeline(
@@ -110,30 +117,34 @@ class EnrichedAdapter:
         self.unpaywall = unpaywall
         self.warnings: list[dict[str, str]] = []
 
-    def _warning(self, provider: str, error: BaseException) -> None:
+    def _warning(self, provider: str, error: BaseException, candidate=None, stage="provider_enrichment") -> None:
         code = getattr(error, "code", None)
         category = "rate_limited" if code == 429 else "request_budget" if "budget" in str(error).lower() else "network"
-        self.warnings.append({"provider": provider, "category": category, "message": "provider rate limited request" if category == "rate_limited" else category.replace("_", " ")})
+        from .identity import normalized_identifiers
+        self.warnings.append({"provider": provider, "category": category, "stage": stage, "candidate_identifiers": normalized_identifiers({"doi": candidate.doi, "identifiers": candidate.identifiers}) if candidate else {}, "message": "provider rate limited request" if category == "rate_limited" else category.replace("_", " ")})
 
     def search(self, feed: FeedConfig, limit: int):
         self.warnings = []
         try:
             candidates = self.discovery.search(feed, limit)
         except (OSError, RuntimeError) as error:
-            self._warning(type(self.discovery).__name__.removesuffix("Adapter"), error)
+            self._warning(type(self.discovery).__name__.removesuffix("Adapter"), error, stage="retrieval")
             return []
         for candidate in candidates:
             try:
                 candidate = self.crossref.repair(candidate)
             except (OSError, RuntimeError) as error:
-                self._warning("Crossref", error)
+                self._warning("Crossref", error, candidate)
                 pass
-            candidate = self.semantic_scholar.enrich(candidate)
+            try:
+                candidate = self.semantic_scholar.enrich(candidate)
+            except (OSError, RuntimeError) as error:
+                self._warning("Semantic Scholar", error, candidate)
             if candidate.doi and self.unpaywall:
                 try:
                     record = self.unpaywall.lookup(candidate.doi)
                 except (OSError, RuntimeError) as error:
-                    self._warning("Unpaywall", error)
+                    self._warning("Unpaywall", error, candidate)
                     record = None
                 if record:
                     candidate.metadata["unpaywall"] = dict(record)

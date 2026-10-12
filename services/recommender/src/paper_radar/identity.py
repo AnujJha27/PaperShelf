@@ -45,29 +45,77 @@ def _identifier(candidate: Mapping[str, Any], kind: str) -> str | None:
     return str(value).strip().casefold() if value else None
 
 
+def normalize_identifier(kind: str, raw: Any) -> str | None:
+    if raw is None:
+        return None
+    kind = kind.strip().casefold()
+    value = str(raw).strip().casefold()
+    if not value:
+        return None
+    if kind == "doi":
+        return canonicalize_doi(value)
+    if kind == "openalex":
+        value = re.sub(r"^https?://openalex\.org/", "", value)
+        return value.upper() if re.fullmatch(r"w\d+", value, re.I) else value
+    if kind == "arxiv":
+        value = re.sub(r"^https?://arxiv\.org/(abs|pdf)/", "", value)
+        value = re.sub(r"\.pdf$", "", value)
+        return re.sub(r"v\d+$", "", value)
+    if kind == "pmid":
+        value = re.sub(r"^https?://pubmed\.ncbi\.nlm\.nih\.gov/", "", value)
+        return re.sub(r"/+$", "", value)
+    if kind == "pmcid":
+        value = re.sub(r"^https?://(?:www\.)?ncbi\.nlm\.nih\.gov/pmc/articles/", "", value)
+        return value.upper().removesuffix("/")
+    return value
+
+
+def normalized_identifiers(candidate: Mapping[str, Any]) -> dict[str, str]:
+    identifiers = candidate.get("identifiers")
+    values = dict(identifiers) if isinstance(identifiers, Mapping) else {}
+    for kind in ("doi", "openalex", "arxiv", "pmid", "pmcid", "mag", "semantic_scholar"):
+        value = candidate.get(f"{kind}_id")
+        if value and kind not in values:
+            values[kind] = value
+    if candidate.get("doi"):
+        values["doi"] = candidate["doi"]
+    normalized = {
+        str(kind).strip().casefold(): value
+        for kind, raw in values.items()
+        if (value := normalize_identifier(str(kind), raw)) is not None
+    }
+    return dict(sorted(normalized.items()))
+
+
+def _metadata_score(paper: Mapping[str, Any]) -> tuple[int, str]:
+    authors = paper.get("authors")
+    author_count = len(authors) if isinstance(authors, (list, tuple)) else int(bool(authors))
+    title_length = len(str(paper.get("title") or "").strip())
+    abstract_length = len(str(paper.get("abstract") or "").strip())
+    score = (
+        min(title_length, 200) // 20
+        + min(abstract_length, 4000) // 250
+        + min(author_count, 8)
+        + 2 * bool(paper.get("venue"))
+        + bool(paper.get("publication_date"))
+        + bool(paper.get("publication_year"))
+        + bool(paper.get("canonical_url"))
+        + bool(paper.get("doi"))
+        + bool(paper.get("openalex_id"))
+        + bool(paper.get("work_type"))
+    )
+    return score, str(paper.get("id") or "")
+
+
 def choose_existing_paper(candidate: Mapping[str, Any], existing: Sequence[Mapping[str, Any]]) -> UUID | None:
-    candidate_doi = canonicalize_doi(candidate.get("doi"))
-    if candidate_doi:
-        for paper in existing:
-            if canonicalize_doi(paper.get("doi")) == candidate_doi:
-                return paper["id"]
-
-    for kind in ("openalex", "arxiv", "pmid", "pmcid", "mag"):
-        value = _identifier(candidate, kind)
-        if not value:
-            continue
-        for paper in existing:
-            if _identifier(paper, kind) == value:
-                return paper["id"]
-
-    title = normalize_title(candidate.get("title"))
-    if len(title) < 12:
-        return None
-    author = _first_author(candidate.get("authors"))
-    year = candidate.get("publication_year")
-    if not author or not year:
-        return None
+    candidate_ids = normalized_identifiers(candidate)
+    matches: dict[str, Mapping[str, Any]] = {}
     for paper in existing:
-        if normalize_title(paper.get("title")) == title and _first_author(paper.get("authors")) == author and paper.get("publication_year") == year:
-            return paper["id"]
+        paper_ids = normalized_identifiers(paper)
+        if any(paper_ids.get(kind) == value for kind, value in candidate_ids.items()):
+            matches[str(paper["id"])] = paper
+
+    if matches:
+        return matches[sorted(matches, key=lambda key: (-_metadata_score(matches[key])[0], key))[0]]["id"]
+
     return None

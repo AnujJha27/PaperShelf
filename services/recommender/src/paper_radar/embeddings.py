@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from functools import lru_cache
 from typing import Any
 
 EMBEDDING_DIMENSION = 384
@@ -15,13 +16,18 @@ def _texts(values: Sequence[str | tuple[str, str | None]]) -> list[str]:
     return [embedding_text(value[0], value[1]) if isinstance(value, tuple) else value for value in values]
 
 
+@lru_cache(maxsize=2)
+def _load_model(model_name: str):
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError as error:
+        raise RuntimeError("Install sentence-transformers to generate production embeddings") from error
+    return SentenceTransformer(model_name)
+
+
 def embed_texts(values: Sequence[str | tuple[str, str | None]], embedder: Any | None = None, model_name: str = DEFAULT_MODEL) -> list[list[float]]:
     if embedder is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-        except ImportError as error:
-            raise RuntimeError("Install sentence-transformers to generate production embeddings") from error
-        embedder = SentenceTransformer(model_name)
+        embedder = _load_model(model_name)
     encoded = embedder.encode(_texts(values), normalize_embeddings=True, convert_to_numpy=False)
     result = [list(map(float, row)) for row in encoded]
     if any(len(row) != EMBEDDING_DIMENSION for row in result):

@@ -1,0 +1,16 @@
+{
+  "dataset": "PaperShelf authored technicality bootstrap v1",
+  "provenance": "Hand-authored title and abstract descriptions; no third-party paper text",
+  "license": "Project-authored text",
+  "train_examples": 64,
+  "held_out_examples": 32,
+  "threshold": 0.62,
+  "calibration": "4-fold sigmoid (Platt) calibration",
+  "accuracy": 1.0,
+  "balanced_accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "roc_auc": 1.0,
+  "brier_score": 0.010944852624307494,
+  "errors": []
+}

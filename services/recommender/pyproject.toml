@@ -14,6 +14,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+paper_radar = ["*.jsonl", "*.json"]
+
 [project.scripts]
 paper-radar = "paper_radar.cli:main"
 

@@ -14,12 +14,19 @@ class RankingTests(unittest.TestCase):
 
     def test_exploration_stays_inside_feed_scope_gate(self):
         candidates = score_candidates([
-            CandidateFeatures("keyword", 0.1, 1.0, global_probability=0.5),
-            CandidateFeatures("semantic", 0.8, 0.0, global_probability=0.5, min_semantic_similarity=0.35),
-            CandidateFeatures("noise", 0.1, 0.0, global_probability=0.5, min_semantic_similarity=0.35),
+            CandidateFeatures("keyword", 0.1, 1.0, global_probability=0.5, strong_keyword_evidence=True, topic_gate_passed=False, technical_gate_passed=True),
+            CandidateFeatures("semantic", 0.8, 0.0, global_probability=0.5, min_semantic_similarity=0.35, topic_gate_passed=True, technical_gate_passed=True),
+            CandidateFeatures("noise", 0.1, 0.0, global_probability=0.5, min_semantic_similarity=0.35, topic_gate_passed=False, technical_gate_passed=True),
         ])
         selected = select_with_exploration(candidates, 3, exploration_rate=1.0)
         self.assertNotIn("noise", [item.paper_id for item in selected])
+
+    def test_exploration_cannot_admit_a_technicality_rejection(self):
+        scored = score_candidates([
+            CandidateFeatures("contextual", 0.99, 1.0, topic_gate_passed=True, technical_gate_passed=False),
+            CandidateFeatures("technical", 0.8, 0.0, topic_gate_passed=True, technical_gate_passed=True),
+        ])
+        self.assertEqual([item.paper_id for item in select_with_exploration(scored, 2, 1.0)], ["technical"])
 
     def test_missing_feed_model_redistributes_its_weight(self):
         result = score_candidates([CandidateFeatures("paper", 1.0, 0.0, global_probability=0.0)])[0]
@@ -27,8 +34,8 @@ class RankingTests(unittest.TestCase):
 
     def test_exploitation_uses_diversity_when_scores_are_close(self):
         scored = score_candidates([
-            CandidateFeatures("A", 1.0, 0.0, global_probability=1.0, diversity_vector=(1.0, 0.0)),
-            CandidateFeatures("B", 0.98, 0.0, global_probability=1.0, diversity_vector=(1.0, 0.0)),
-            CandidateFeatures("C", 0.7, 0.0, global_probability=1.0, diversity_vector=(0.0, 1.0)),
+            CandidateFeatures("A", 1.0, 0.0, global_probability=1.0, diversity_vector=(1.0, 0.0), topic_gate_passed=True, technical_gate_passed=True),
+            CandidateFeatures("B", 0.98, 0.0, global_probability=1.0, diversity_vector=(1.0, 0.0), topic_gate_passed=True, technical_gate_passed=True),
+            CandidateFeatures("C", 0.7, 0.0, global_probability=1.0, diversity_vector=(0.0, 1.0), topic_gate_passed=True, technical_gate_passed=True),
         ])
         self.assertEqual([item.paper_id for item in select_with_exploration(scored, 2, 0)], ["A", "C"])

@@ -1,6 +1,9 @@
 import unittest
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from paper_radar.embeddings import embedding_text, embed_texts
+from paper_radar.embeddings import _load_model, embedding_text, embed_texts
 
 
 class FakeEmbedder:
@@ -19,3 +22,17 @@ class EmbeddingTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(len(result[0]), 384)
         self.assertEqual(embedder.texts[0], "TITLE: Title\n\nABSTRACT:\nAbstract")
+
+    def test_sentence_transformer_is_loaded_once_per_process(self):
+        loads = []
+
+        class FakeSentenceTransformer(FakeEmbedder):
+            def __init__(self, name):
+                loads.append(name)
+
+        _load_model.cache_clear()
+        with patch.dict(sys.modules, {"sentence_transformers": SimpleNamespace(SentenceTransformer=FakeSentenceTransformer)}):
+            embed_texts(["first"])
+            embed_texts(["second"])
+        _load_model.cache_clear()
+        self.assertEqual(loads, ["BAAI/bge-small-en-v1.5"])

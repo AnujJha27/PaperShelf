@@ -8,6 +8,9 @@ from uuid import UUID, uuid4
 
 from .discovery.base import CandidateWork, DiscoveryAdapter, FeedConfig
 from .ranking import CandidateFeatures, score_candidates, select_with_exploration
+from .gates import TECHNICALITY_THRESHOLD, keyword_score, paper_text, passes_hard_gates, strong_keyword_evidence
+from .identity import normalized_identifiers
+from .technicality import predict_technicality
 
 
 @dataclass(frozen=True)
@@ -80,39 +83,39 @@ def _candidate_in_scope(candidate: CandidateWork, feed: FeedConfig) -> bool:
     # OpenAlex already applies the server-side cutoff for dated retrieval results.
     if candidate.publication_year is not None and candidate.publication_year < feed.min_publication_year:
         return False
-    text = " ".join([candidate.title, candidate.abstract or "", json_text(candidate.metadata)]).casefold()
+    text = paper_text(candidate.title, candidate.abstract)
     if any(keyword.casefold() in text for keyword in feed.exclude_keywords):
         return False
     return bool(candidate.title.strip())
 
 
 def _features_in_scope(features: CandidateFeatures, feed: FeedConfig) -> bool:
-    return features.keyword_score > 0 or features.semantic_similarity >= feed.min_semantic_similarity
-
-
-def json_text(value: object) -> str:
-    if isinstance(value, dict):
-        return " ".join(f"{key} {json_text(item)}" for key, item in value.items())
-    if isinstance(value, (list, tuple, set)):
-        return " ".join(json_text(item) for item in value)
-    return str(value)
+    return features.topic_gate_passed and features.technical_gate_passed and passes_hard_gates(features.semantic_similarity, feed.min_semantic_similarity, features.strong_keyword_evidence, features.technicality_probability, feed.paper_type)
 
 
 def _candidate_features(candidate: CandidateWork, feed: FeedConfig) -> CandidateFeatures:
-    text = " ".join((candidate.title, candidate.abstract or "", json_text(candidate.metadata))).casefold()
+    text = paper_text(candidate.title, candidate.abstract)
     keywords = tuple(dict.fromkeys((*feed.include_keywords, *getattr(feed, "priority_keywords", []))))
-    keyword_score = sum(keyword.casefold() in text for keyword in keywords) / len(keywords) if keywords else 0.0
+    score = keyword_score(text, keywords)
+    strong = strong_keyword_evidence(text, feed.priority_keywords, feed.include_keywords)
+    technicality = predict_technicality(candidate.title, candidate.abstract)
+    topic_passed = passes_hard_gates(float(candidate.metadata.get("semantic_similarity", 0)), feed.min_semantic_similarity, strong, 1.0, "broad")
+    technical_passed = feed.paper_type != "technical" or technicality >= TECHNICALITY_THRESHOLD
     citation_count = candidate.metadata.get("citation_count", candidate.metadata.get("cited_by_count", 0))
     return CandidateFeatures(
         paper_id=candidate.doi or candidate.identifiers.get("openalex") or candidate.title.casefold(),
         semantic_similarity=float(candidate.metadata.get("semantic_similarity", 0)),
-        keyword_score=float(keyword_score),
+        keyword_score=score,
         feed_probability=_optional_float(candidate.metadata.get("feed_probability")),
         global_probability=_optional_float(candidate.metadata.get("global_probability")),
         zotero_similarity=float(candidate.metadata.get("zotero_similarity", 0)),
         freshness_impact=float(candidate.metadata.get("freshness_impact", 0)),
         citation_impact=max(0.0, min(1.0, float(citation_count or 0) / 100)),
         min_semantic_similarity=feed.min_semantic_similarity,
+        strong_keyword_evidence=strong,
+        technicality_probability=technicality,
+        topic_gate_passed=topic_passed,
+        technical_gate_passed=technical_passed,
     )
 
 
@@ -162,25 +165,31 @@ def run_pipeline(
             feed_warnings = getattr(adapter, "warnings", [])
             if feed_warnings:
                 stats["feeds_degraded"] += 1
-                stats["warnings"].extend({**warning, "feed_id": feed.id, "feed_name": feed.name or feed.description} for warning in feed_warnings)
+                stats["warnings"].extend({"feed_id": feed.id, "feed": feed.name or feed.description, "provider": warning.get("provider"), "candidate_identifiers": warning.get("candidate_identifiers", {}), "stage": warning.get("stage", "provider_enrichment"), "error_category": warning.get("category", "provider"), "message": warning.get("message", "provider enrichment failed")} for warning in feed_warnings)
             else:
                 stats["feeds_succeeded"] += 1
             stats["candidates_discovered"] += len(discovered)
-            candidates = [candidate for candidate in discovered if _candidate_in_scope(candidate, feed)]
-            stats["candidates"] += len(candidates)
             provider = getattr(db, "candidate_features", None)
-            prepared = []
-            if mode != "training" or provider:
-                for candidate in candidates:
-                    paper_id = db.upsert_candidate(candidate)
-                    candidate.metadata["_paper_id"] = paper_id
-                    if not provider and hasattr(db, "ensure_paper_embedding"):
-                        db.ensure_paper_embedding(paper_id, candidate)
-                    prepared.append((candidate, paper_id))
-            else:
-                prepared = [(candidate, None) for candidate in candidates]
-            features = [provider(candidate, feed) if provider else _candidate_features(candidate, feed) for candidate in candidates]
-            scoped = [(candidate, features[index], prepared[index][1]) for index, candidate in enumerate(candidates) if _features_in_scope(features[index], feed)]
+            scoped: list[tuple[CandidateWork, CandidateFeatures, str | None]] = []
+            for candidate in discovered:
+                if not _candidate_in_scope(candidate, feed):
+                    continue
+                stats["candidates"] += 1
+                paper_id: str | None = None
+                try:
+                    if mode != "training" or provider:
+                        paper_id = db.upsert_candidate(candidate)
+                        candidate.metadata["_paper_id"] = paper_id
+                        if not provider and hasattr(db, "ensure_paper_embedding"):
+                            db.ensure_paper_embedding(paper_id, candidate)
+                    features = provider(candidate, feed) if provider else _candidate_features(candidate, feed)
+                    if _features_in_scope(features, feed):
+                        scoped.append((candidate, features, paper_id))
+                except Exception as error:
+                    category = _candidate_error_category(error)
+                    if category is None:
+                        raise
+                    stats["warnings"].append(_candidate_warning(feed, candidate, "feature_or_persistence", category, error))
             stats["candidates_in_scope"] += len(scoped)
             if mode == "training":
                 selected = [(candidate, None, paper_id) for candidate, _, paper_id in scoped[:feed_limit]]
@@ -190,16 +199,45 @@ def run_pipeline(
                 by_id = {feature.paper_id: (candidate, paper_id) for (candidate, feature, paper_id) in scoped}
                 selected = [(by_id[item.paper_id][0], item, by_id[item.paper_id][1]) for item in chosen if item.paper_id in by_id]
             for candidate, scored, prepared_id in selected:
-                paper_id = prepared_id or db.upsert_candidate(candidate)
-                if prepared_id is None and hasattr(db, "ensure_paper_embedding"):
-                    db.ensure_paper_embedding(paper_id, candidate)
-                if hasattr(db, "is_eligible") and not db.is_eligible(paper_id, feed.id):
-                    continue
-                db.add_recommendation(run_id, paper_id, feed, scored.final_score if scored else 0, scored.components if scored else None, "Matches feed scope" if scored else "Training batch candidate")
-                stats["recommendations"] += 1
-                stats["recommendations_created"] += 1
-        db.finish_run(run_id, "completed", stats)
-        return PipelineResult("completed", request_id, stats)
+                try:
+                    paper_id = prepared_id or db.upsert_candidate(candidate)
+                    if prepared_id is None and hasattr(db, "ensure_paper_embedding"):
+                        db.ensure_paper_embedding(paper_id, candidate)
+                    if hasattr(db, "is_eligible") and not db.is_eligible(paper_id, feed.id):
+                        continue
+                    db.add_recommendation(run_id, paper_id, feed, scored.final_score if scored else 0, scored.components if scored else None, "Matches feed scope" if scored else "Training batch candidate")
+                    stats["recommendations"] += 1
+                    stats["recommendations_created"] += 1
+                except Exception as error:
+                    category = _candidate_error_category(error)
+                    if category is None:
+                        raise
+                    stats["warnings"].append(_candidate_warning(feed, candidate, "recommendation_persistence", category, error))
+        status = "completed_with_warnings" if stats["warnings"] else "completed"
+        db.finish_run(run_id, status, stats)
+        return PipelineResult(status, request_id, stats)
     except Exception as error:
         db.finish_run(run_id, "failed", stats, str(error))
         return PipelineResult("failed", request_id, stats, str(error))
+
+
+def _candidate_error_category(error: Exception) -> str | None:
+    message = str(error)
+    if "network error" in message.lower() or "returned 5" in message or "returned 429" in message:
+        return None
+    if "returned 409" in message or "duplicate key" in message.lower():
+        return "identity_conflict"
+    if "returned 4" in message or isinstance(error, (ValueError, KeyError, TypeError)):
+        return "candidate_data"
+    return None
+
+
+def _candidate_warning(feed: FeedConfig, candidate: CandidateWork, stage: str, category: str, error: Exception) -> dict[str, Any]:
+    return {
+        "feed_id": feed.id,
+        "feed": feed.name or feed.description,
+        "candidate_identifiers": normalized_identifiers({"doi": candidate.doi, "identifiers": candidate.identifiers}),
+        "stage": stage,
+        "error_category": category,
+        "message": " ".join(str(error).split())[:240],
+    }
